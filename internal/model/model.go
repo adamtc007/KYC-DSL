@@ -25,6 +25,7 @@ type KycCase struct {
 	Obligations []KycObligation
 	Functions   []Function
 	Token       *KycToken
+	Ownership   *OwnershipStructure
 }
 
 type ClientBusinessUnit struct {
@@ -46,4 +47,39 @@ type Function struct {
 
 type KycToken struct {
 	Status string
+}
+
+// OwnershipStructure represents the ownership and control hierarchy of an entity
+type OwnershipStructure struct {
+	Entity           string
+	LegalOwners      []Owner
+	BeneficialOwners []BeneficialOwner
+	Controllers      []Controller
+	OperationalRoles []OperationalRole
+}
+
+// Owner represents a legal owner with ownership percentage
+type Owner struct {
+	Name       string
+	Percentage float64
+}
+
+// BeneficialOwner represents a beneficial owner with economic interest
+type BeneficialOwner struct {
+	Name       string
+	Percentage float64
+	Interest   string // e.g., "voting rights", "economic interest"
+}
+
+// Controller represents a person with significant control or influence
+type Controller struct {
+	Name string
+	Role string // e.g., "Senior Managing Official", "Director", "Trustee"
+}
+
+// OperationalRole represents key operational management personnel
+type OperationalRole struct {
+	Name     string
+	Title    string
+	Function string // e.g., "day-to-day management", "compliance officer"
 }

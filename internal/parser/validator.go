@@ -45,6 +45,7 @@ func validateCaseSemantics(db *sqlx.DB, c *model.KycCase) error {
 		"SOLICIT-DOCUMENTS",
 		"EXTRACT-DATA",
 		"VERIFY-OWNERSHIP",
+		"BUILD-OWNERSHIP-TREE",
 		"ASSESS-RISK",
 		"REGULATOR-NOTIFY",
 	}

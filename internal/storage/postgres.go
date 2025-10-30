@@ -80,6 +80,15 @@ func ConnectPostgres() (*sqlx.DB, error) {
 		ebnf TEXT,
 		created_at TIMESTAMP DEFAULT NOW()
 	);
+
+	CREATE TABLE IF NOT EXISTS kyc_case_amendments (
+		id SERIAL PRIMARY KEY,
+		case_name TEXT NOT NULL,
+		step TEXT NOT NULL,
+		change_type TEXT NOT NULL,
+		diff TEXT,
+		created_at TIMESTAMP DEFAULT NOW()
+	);
 	`
 	db.MustExec(schema)
 	debugLog("Schema created/verified successfully")
@@ -121,6 +130,51 @@ func sha256Hex(input string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
+// InsertAmendment logs a change to a case for audit trail.
+func InsertAmendment(db *sqlx.DB, caseName, step, changeType, diff string) error {
+	query := `INSERT INTO kyc_case_amendments (case_name, step, change_type, diff) VALUES ($1, $2, $3, $4)`
+	_, err := db.Exec(query, caseName, step, changeType, diff)
+	if err != nil {
+		debugLog("InsertAmendment failed: %v", err)
+		return fmt.Errorf("insert amendment failed: %w", err)
+	}
+	debugLog("Amendment logged for case=%s step=%s type=%s", caseName, step, changeType)
+	return nil
+}
+
+// GetAmendments retrieves all amendments for a case.
+func GetAmendments(db *sqlx.DB, caseName string) ([]Amendment, error) {
+	var amendments []Amendment
+	query := `SELECT id, case_name, step, change_type, diff, created_at
+	          FROM kyc_case_amendments
+	          WHERE case_name=$1
+	          ORDER BY created_at DESC`
+	err := db.Select(&amendments, query, caseName)
+	if err != nil {
+		return nil, fmt.Errorf("get amendments failed: %w", err)
+	}
+	return amendments, nil
+}
+
+// Amendment represents a logged change to a case.
+type Amendment struct {
+	ID         int       `db:"id"`
+	CaseName   string    `db:"case_name"`
+	Step       string    `db:"step"`
+	ChangeType string    `db:"change_type"`
+	Diff       string    `db:"diff"`
+	CreatedAt  time.Time `db:"created_at"`
+}
+
+// CaseVersion represents a versioned snapshot of a case.
+type CaseVersion struct {
+	CaseName    string    `db:"case_name"`
+	Version     int       `db:"version"`
+	DslSnapshot string    `db:"dsl_snapshot"`
+	Hash        string    `db:"hash"`
+	CreatedAt   time.Time `db:"created_at"`
+}
+
 // GetNextVersion returns the next version number for a given case.
 func GetNextVersion(db *sqlx.DB, caseName string) (int, error) {
 	var current int
@@ -145,6 +199,26 @@ func SaveCaseVersion(db *sqlx.DB, caseName, dsl string) error {
 	}
 	fmt.Printf("📜 Case %s saved version %d (hash=%s)\n", caseName, nextVer, hash[:12])
 	return nil
+}
+
+// GetLatestDSL fetches the most recent serialized DSL for a case.
+func GetLatestDSL(db *sqlx.DB, caseName string) (string, error) {
+	var dsl string
+	err := db.Get(&dsl, `
+		SELECT dsl_snapshot FROM kyc_case_versions
+		WHERE case_name=$1
+		ORDER BY version DESC LIMIT 1
+	`, caseName)
+	return dsl, err
+}
+
+// LogAmendment records an applied mutation step.
+func LogAmendment(db *sqlx.DB, caseName, step, diff string) error {
+	_, err := db.Exec(`
+		INSERT INTO kyc_case_amendments (case_name, step, change_type, diff)
+		VALUES ($1, $2, 'mutation', $3)
+	`, caseName, step, diff)
+	return err
 }
 
 func InsertGrammar(db *sqlx.DB, name, version, ebnf string) error {
