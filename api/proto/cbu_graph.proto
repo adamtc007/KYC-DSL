@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package kyc.cbu;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb;pb";
+
+import "google/protobuf/timestamp.proto";
+
+// CbuEntity represents a legal entity in the Client Business Unit network
+message CbuEntity {
+  string id = 1;
+  string name = 2;
+  string entity_type = 3;   // Parent, Fund, Manager, Custodian, etc.
+  string jurisdiction = 4;
+  string lei_code = 5;      // Legal Entity Identifier (optional)
+  string tax_id = 6;        // Tax identification number (optional)
+  google.protobuf.Timestamp created_at = 7;
+  float x = 8;              // Optional layout hint for visualization (X coordinate)
+  float y = 9;              // Optional layout hint for visualization (Y coordinate)
+}
+
+// CbuRole represents a functional role in the business structure
+message CbuRole {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string regulatory_classification = 4;  // e.g., UCITS ManCo, AIFM, etc.
+}
+
+// CbuRelationship represents a directional relationship between entities
+message CbuRelationship {
+  string id = 1;
+  string from_id = 2;       // Source entity ID
+  string to_id = 3;         // Target entity ID
+  string relation_type = 4; // owns | controls | delegates | reports_to | custodies
+  float control_pct = 5;    // Percentage of control (0-100)
+  string role_id = 6;       // Associated role ID
+  bool is_beneficial = 7;   // True if beneficial ownership
+  google.protobuf.Timestamp effective_date = 8;
+}
+
+// CbuGraph represents the complete organizational graph for a Client Business Unit
+message CbuGraph {
+  string cbu_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated CbuEntity entities = 4;
+  repeated CbuRole roles = 5;
+  repeated CbuRelationship relationships = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  int32 entity_count = 9;
+  int32 relationship_count = 10;
+}
+
+// CbuGraphService provides operations for retrieving and managing CBU organizational graphs
+service CbuGraphService {
+  // GetGraph retrieves the complete organizational graph for a CBU
+  rpc GetGraph (GetCbuRequest) returns (CbuGraph);
+
+  // GetEntity retrieves a single entity by ID
+  rpc GetEntity (GetEntityRequest) returns (CbuEntity);
+
+  // ListEntities streams all entities in a CBU
+  rpc ListEntities (GetCbuRequest) returns (stream CbuEntity);
+
+  // GetRelationships retrieves relationships for a specific entity
+  rpc GetRelationships (GetEntityRequest) returns (RelationshipResponse);
+
+  // ValidateGraph validates the graph structure and control percentages
+  rpc ValidateGraph (GetCbuRequest) returns (ValidationResponse);
+
+  // GetControlChain traces the control chain from root to a specific entity
+  rpc GetControlChain (GetEntityRequest) returns (ControlChainResponse);
+}
+
+// GetCbuRequest requests a CBU graph by ID
+message GetCbuRequest {
+  string cbu_id = 1;
+}
+
+// GetEntityRequest requests a specific entity
+message GetEntityRequest {
+  string cbu_id = 1;
+  string entity_id = 2;
+}
+
+// RelationshipResponse contains relationships for an entity
+message RelationshipResponse {
+  string entity_id = 1;
+  repeated CbuRelationship inbound = 2;   // Relationships pointing to this entity
+  repeated CbuRelationship outbound = 3;  // Relationships from this entity
+}
+
+// ValidationResponse contains graph validation results
+message ValidationResponse {
+  bool valid = 1;
+  repeated ValidationIssue issues = 2;
+  float total_control_pct = 3;  // Sum of all direct ownership
+}
+
+// ValidationIssue represents a single validation problem
+message ValidationIssue {
+  string severity = 1;  // error, warning, info
+  string message = 2;
+  string entity_id = 3;
+  string relationship_id = 4;
+}
+
+// ControlChainResponse traces ownership from root to target
+message ControlChainResponse {
+  string target_entity_id = 1;
+  repeated ControlLink chain = 2;
+  float effective_control_pct = 3;  // Product of all control percentages in chain
+}
+
+// ControlLink represents one hop in the control chain
+message ControlLink {
+  string from_entity_id = 1;
+  string from_entity_name = 2;
+  string to_entity_id = 3;
+  string to_entity_name = 4;
+  string relation_type = 5;
+  float control_pct = 6;
+  string role_id = 7;
+}

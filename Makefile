@@ -1,7 +1,7 @@
 # Makefile for KYC-DSL
 # Builds with greenteagc garbage collector experiment
 
-.PHONY: build build-server run run-server test clean lint fmt deps verify proto gateway run-grpc
+.PHONY: build build-server build-client run run-server run-client test clean lint fmt deps verify proto gateway run-grpc
 
 # Build variables
 GOEXPERIMENT := greenteagc
@@ -9,14 +9,16 @@ BUILD_DIR := bin
 BINARY := kycctl
 SERVER_BINARY := kycserver
 GRPC_SERVER_BINARY := grpcserver
+CLIENT_BINARY := kycclient
 CMD_DIR := ./cmd/kycctl
 SERVER_CMD_DIR := ./cmd/kycserver
 GRPC_SERVER_DIR := ./cmd/server
+CLIENT_CMD_DIR := ./cmd/client
 PROTO_DIR := api/proto
 PB_DIR := api/pb
 
 # Default target - build all binaries
-all: build build-server build-grpc
+all: build build-server build-grpc build-client
 
 # Build CLI
 build: $(BUILD_DIR)/$(BINARY)
@@ -43,6 +45,14 @@ $(BUILD_DIR)/$(GRPC_SERVER_BINARY):
 	@mkdir -p $(BUILD_DIR)
 	GOEXPERIMENT=$(GOEXPERIMENT) go build -o $(BUILD_DIR)/$(GRPC_SERVER_BINARY) $(GRPC_SERVER_DIR)
 
+# Build the Gio client binary
+build-client: $(BUILD_DIR)/$(CLIENT_BINARY)
+
+$(BUILD_DIR)/$(CLIENT_BINARY):
+	@echo "Building $(CLIENT_BINARY) with GOEXPERIMENT=$(GOEXPERIMENT)..."
+	@mkdir -p $(BUILD_DIR)
+	GOEXPERIMENT=$(GOEXPERIMENT) go build -o $(BUILD_DIR)/$(CLIENT_BINARY) $(CLIENT_CMD_DIR)
+
 # Run with sample case
 run: build
 	@echo "Running $(BINARY) with sample case..."
@@ -64,6 +74,13 @@ run-grpc: build-grpc
 	@echo "Starting gRPC server (port 50051) with REST gateway (port 8080)..."
 	@echo "Make sure OPENAI_API_KEY is set and database is running"
 	./$(BUILD_DIR)/$(GRPC_SERVER_BINARY)
+
+# Run the Gio client
+run-client: build-client
+	@echo "Starting Gio CBU Graph Viewer..."
+	@echo "Make sure gRPC server is running on localhost:50051"
+	@echo "Set GRPC_SERVER and CBU_ID env vars to customize"
+	./$(BUILD_DIR)/$(CLIENT_BINARY)
 
 # Run all tests with greenteagc (exclude examples)
 test:
