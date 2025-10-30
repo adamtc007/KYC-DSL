@@ -9,6 +9,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
+	"github.com/adamtc007/KYC-DSL/internal/model"
 	"github.com/adamtc007/KYC-DSL/internal/ontology"
 	"github.com/adamtc007/KYC-DSL/internal/rag"
 )
@@ -81,6 +82,46 @@ type RiskDistributionItem struct {
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
+}
+
+// MultiModalResponse represents enriched search results with documents and regulations
+type MultiModalResponse struct {
+	Query   string                      `json:"query"`
+	Limit   int                         `json:"limit"`
+	Count   int                         `json:"count"`
+	Results []MultiModalAttributeResult `json:"results"`
+}
+
+// MultiModalAttributeResult represents an attribute with linked documents and regulations
+type MultiModalAttributeResult struct {
+	Attribute   AttributeResultSimple `json:"attribute"`
+	Documents   []DocumentResult      `json:"documents"`
+	Regulations []RegulationResult    `json:"regulations"`
+}
+
+// AttributeResultSimple is a simplified attribute result for multi-modal queries
+type AttributeResultSimple struct {
+	Code        string `json:"code"`
+	RiskLevel   string `json:"risk_level"`
+	Description string `json:"business_context"`
+}
+
+// DocumentResult represents a document in search results
+type DocumentResult struct {
+	Code         string `json:"code"`
+	Title        string `json:"title"`
+	Jurisdiction string `json:"jurisdiction"`
+	Description  string `json:"description"`
+	DocType      string `json:"doc_type,omitempty"`
+}
+
+// RegulationResult represents a regulation in search results
+type RegulationResult struct {
+	Code     string `json:"code"`
+	Title    string `json:"title"`
+	Citation string `json:"citation"`
+	Summary  string `json:"summary"`
+	Region   string `json:"region,omitempty"`
 }
 
 // HandleAttributeSearch performs semantic search on attributes
@@ -336,6 +377,118 @@ func (h *RagHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleEnrichedAttributeSearch performs multi-modal semantic search with documents and regulations
+// GET /rag/attribute_search_enriched?q=<query>&limit=<limit>
+func (h *RagHandler) HandleEnrichedAttributeSearch(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		h.sendError(w, http.StatusBadRequest, "missing 'q' query parameter")
+		return
+	}
+
+	limit := 10
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	ctx := context.Background()
+
+	// Generate embedding for query
+	queryEmbedding, err := h.Embedder.GenerateEmbeddingFromText(ctx, query)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "failed to generate query embedding: "+err.Error())
+		return
+	}
+
+	// Perform multi-modal search
+	repo := ontology.NewMultiModalRepo(h.DB)
+	results, err := repo.SearchAttributesAndDocs(ctx, queryEmbedding, limit)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "failed to search: "+err.Error())
+		return
+	}
+
+	// Format response
+	type DocResult struct {
+		Code         string `json:"code"`
+		Title        string `json:"title"`
+		Jurisdiction string `json:"jurisdiction"`
+		DocType      string `json:"doc_type,omitempty"`
+		Description  string `json:"description"`
+	}
+
+	type RegResult struct {
+		Code     string `json:"code"`
+		Title    string `json:"title"`
+		Citation string `json:"citation,omitempty"`
+		Summary  string `json:"summary"`
+		Region   string `json:"region,omitempty"`
+	}
+
+	type EnrichedResult struct {
+		Attribute   AttributeResult `json:"attribute"`
+		Documents   []DocResult     `json:"documents"`
+		Regulations []RegResult     `json:"regulations"`
+	}
+
+	enrichedResults := make([]EnrichedResult, 0, len(results))
+
+	for _, r := range results {
+		// Format attribute
+		attr := AttributeResult{
+			Code:                r.Attribute.AttributeCode,
+			RiskLevel:           r.Attribute.RiskLevel,
+			DataType:            r.Attribute.DataType,
+			Description:         strings.TrimSpace(r.Attribute.BusinessContext),
+			Synonyms:            r.Attribute.Synonyms,
+			RegulatoryCitations: r.Attribute.RegulatoryCitations,
+			ExampleValues:       r.Attribute.ExampleValues,
+		}
+
+		// Format documents
+		docs := make([]DocResult, 0, len(r.Documents))
+		for _, d := range r.Documents {
+			docs = append(docs, DocResult{
+				Code:         d.Code,
+				Title:        d.Title,
+				Jurisdiction: d.Jurisdiction,
+				DocType:      d.DocType,
+				Description:  strings.TrimSpace(d.Description),
+			})
+		}
+
+		// Format regulations
+		regs := make([]RegResult, 0, len(r.Regulations))
+		for _, reg := range r.Regulations {
+			regs = append(regs, RegResult{
+				Code:     reg.Code,
+				Title:    reg.Title,
+				Citation: reg.Citation,
+				Summary:  strings.TrimSpace(reg.Summary),
+				Region:   reg.Region,
+			})
+		}
+
+		enrichedResults = append(enrichedResults, EnrichedResult{
+			Attribute:   attr,
+			Documents:   docs,
+			Regulations: regs,
+		})
+	}
+
+	response := map[string]interface{}{
+		"query":   query,
+		"limit":   limit,
+		"count":   len(enrichedResults),
+		"results": enrichedResults,
+	}
+
+	h.sendJSON(w, http.StatusOK, response)
+}
+
 // sendJSON sends a JSON response
 func (h *RagHandler) sendJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -353,5 +506,177 @@ func (h *RagHandler) sendError(w http.ResponseWriter, statusCode int, message st
 	json.NewEncoder(w).Encode(ErrorResponse{
 		Error:   http.StatusText(statusCode),
 		Message: message,
+	})
+}
+
+// HandleMultiModalSearch performs enriched semantic search with documents and regulations
+// GET /rag/multimodal_search?q=<query>&limit=<limit>
+func (h *RagHandler) HandleMultiModalSearch(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		h.sendError(w, http.StatusBadRequest, "missing 'q' query parameter")
+		return
+	}
+
+	limit := 10
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	ctx := context.Background()
+
+	// Generate embedding for query
+	queryEmbedding, err := h.Embedder.GenerateEmbeddingFromText(ctx, query)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "failed to generate query embedding: "+err.Error())
+		return
+	}
+
+	// Perform multi-modal search
+	repo := ontology.NewMultiModalRepo(h.DB)
+	results, err := repo.SearchAttributesAndDocs(ctx, queryEmbedding, limit)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "failed to search: "+err.Error())
+		return
+	}
+
+	// Format response
+	response := MultiModalResponse{
+		Query:   query,
+		Limit:   limit,
+		Count:   len(results),
+		Results: make([]MultiModalAttributeResult, 0, len(results)),
+	}
+
+	for _, result := range results {
+		// Format attribute
+		attrResult := AttributeResultSimple{
+			Code:        result.Attribute.AttributeCode,
+			RiskLevel:   result.Attribute.RiskLevel,
+			Description: strings.TrimSpace(result.Attribute.BusinessContext),
+		}
+
+		// Format documents
+		docs := make([]DocumentResult, 0, len(result.Documents))
+		for _, doc := range result.Documents {
+			docs = append(docs, DocumentResult{
+				Code:         doc.Code,
+				Title:        doc.Title,
+				Jurisdiction: doc.Jurisdiction,
+				Description:  strings.TrimSpace(doc.Description),
+				DocType:      doc.DocType,
+			})
+		}
+
+		// Format regulations
+		regs := make([]RegulationResult, 0, len(result.Regulations))
+		for _, reg := range result.Regulations {
+			regs = append(regs, RegulationResult{
+				Code:     reg.Code,
+				Title:    reg.Title,
+				Citation: reg.Citation,
+				Summary:  strings.TrimSpace(reg.Summary),
+				Region:   reg.Region,
+			})
+		}
+
+		response.Results = append(response.Results, MultiModalAttributeResult{
+			Attribute:   attrResult,
+			Documents:   docs,
+			Regulations: regs,
+		})
+	}
+
+	h.sendJSON(w, http.StatusOK, response)
+}
+
+// HandleGetDocuments returns all documents with optional filtering
+// GET /rag/documents?attribute=<code>
+func (h *RagHandler) HandleGetDocuments(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	repo := ontology.NewMultiModalRepo(h.DB)
+
+	// Check if filtering by attribute
+	attributeCode := r.URL.Query().Get("attribute")
+
+	var docs []model.Document
+	var err error
+
+	if attributeCode != "" {
+		docs, err = repo.GetDocumentsByAttribute(ctx, attributeCode)
+	} else {
+		// For now, return error - full list could be large
+		h.sendError(w, http.StatusBadRequest, "attribute parameter required")
+		return
+	}
+
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "failed to fetch documents: "+err.Error())
+		return
+	}
+
+	// Format response
+	results := make([]DocumentResult, 0, len(docs))
+	for _, doc := range docs {
+		results = append(results, DocumentResult{
+			Code:         doc.Code,
+			Title:        doc.Title,
+			Jurisdiction: doc.Jurisdiction,
+			Description:  strings.TrimSpace(doc.Description),
+			DocType:      doc.DocType,
+		})
+	}
+
+	h.sendJSON(w, http.StatusOK, map[string]interface{}{
+		"attribute": attributeCode,
+		"count":     len(results),
+		"documents": results,
+	})
+}
+
+// HandleGetRegulations returns all regulations with optional filtering
+// GET /rag/regulations?attribute=<code>
+func (h *RagHandler) HandleGetRegulations(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	repo := ontology.NewMultiModalRepo(h.DB)
+
+	// Check if filtering by attribute
+	attributeCode := r.URL.Query().Get("attribute")
+
+	var regs []model.Regulation
+	var err error
+
+	if attributeCode != "" {
+		regs, err = repo.GetRegulationsByAttribute(ctx, attributeCode)
+	} else {
+		// For now, return error - full list could be large
+		h.sendError(w, http.StatusBadRequest, "attribute parameter required")
+		return
+	}
+
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "failed to fetch regulations: "+err.Error())
+		return
+	}
+
+	// Format response
+	results := make([]RegulationResult, 0, len(regs))
+	for _, reg := range regs {
+		results = append(results, RegulationResult{
+			Code:     reg.Code,
+			Title:    reg.Title,
+			Citation: reg.Citation,
+			Summary:  strings.TrimSpace(reg.Summary),
+			Region:   reg.Region,
+		})
+	}
+
+	h.sendJSON(w, http.StatusOK, map[string]interface{}{
+		"attribute":   attributeCode,
+		"count":       len(results),
+		"regulations": results,
 	})
 }

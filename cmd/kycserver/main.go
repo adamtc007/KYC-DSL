@@ -64,6 +64,7 @@ func main() {
 
 	// RAG endpoints
 	mux.HandleFunc("/rag/attribute_search", corsMiddleware(ragHandler.HandleAttributeSearch))
+	mux.HandleFunc("/rag/attribute_search_enriched", corsMiddleware(ragHandler.HandleEnrichedAttributeSearch))
 	mux.HandleFunc("/rag/similar_attributes", corsMiddleware(ragHandler.HandleSimilarAttributes))
 	mux.HandleFunc("/rag/text_search", corsMiddleware(ragHandler.HandleTextSearch))
 	mux.HandleFunc("/rag/stats", corsMiddleware(ragHandler.HandleMetadataStats))
@@ -90,6 +91,7 @@ func main() {
 		log.Println("   GET  /rag/health                         - Health check")
 		log.Println("   GET  /rag/stats                          - Metadata statistics")
 		log.Println("   GET  /rag/attribute_search?q=<query>     - Semantic search")
+		log.Println("   GET  /rag/attribute_search_enriched?q=<query> - Enriched search with docs & regs")
 		log.Println("   GET  /rag/similar_attributes?code=<code> - Similar attributes")
 		log.Println("   GET  /rag/text_search?term=<term>        - Text search")
 		log.Println("   GET  /rag/attribute/<code>               - Get attribute metadata")
