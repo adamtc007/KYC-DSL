@@ -162,3 +162,84 @@ func (r *Repository) DocumentLinkedToRegulation(docCode string) (bool, error) {
 	`, docCode)
 	return count > 0, err
 }
+
+// ListPublicAttributes returns all public attributes
+func (r *Repository) ListPublicAttributes() ([]Attribute, error) {
+	var attrs []Attribute
+	err := r.db.Select(&attrs, `
+		SELECT * FROM kyc_attributes
+		WHERE attribute_class = 'Public'
+		ORDER BY code
+	`)
+	return attrs, err
+}
+
+// ListPrivateAttributes returns all private (derived) attributes
+func (r *Repository) ListPrivateAttributes() ([]Attribute, error) {
+	var attrs []Attribute
+	err := r.db.Select(&attrs, `
+		SELECT * FROM kyc_attributes
+		WHERE attribute_class = 'Private'
+		ORDER BY code
+	`)
+	return attrs, err
+}
+
+// GetAttributeDerivations returns all derivations for a private attribute
+func (r *Repository) GetAttributeDerivations(derivedAttrCode string) ([]AttributeDerivation, error) {
+	var derivations []AttributeDerivation
+	err := r.db.Select(&derivations, `
+		SELECT * FROM kyc_attribute_derivations
+		WHERE derived_attribute_code=$1
+		ORDER BY source_attribute_code
+	`, derivedAttrCode)
+	return derivations, err
+}
+
+// GetAttributeLineage returns the full lineage view for a derived attribute
+func (r *Repository) GetAttributeLineage(derivedAttrCode string) ([]AttributeDerivation, error) {
+	var lineage []AttributeDerivation
+	err := r.db.Select(&lineage, `
+		SELECT
+			d.id,
+			d.derived_attribute_code,
+			d.source_attribute_code,
+			d.rule_expression,
+			d.rule_type,
+			d.description,
+			d.created_at
+		FROM kyc_attribute_derivations d
+		WHERE d.derived_attribute_code=$1
+		ORDER BY d.source_attribute_code
+	`, derivedAttrCode)
+	return lineage, err
+}
+
+// InsertAttributeDerivation adds a new derivation rule
+func (r *Repository) InsertAttributeDerivation(d AttributeDerivation) error {
+	query := `
+		INSERT INTO kyc_attribute_derivations
+		(derived_attribute_code, source_attribute_code, rule_expression, rule_type, description)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+	_, err := r.db.Exec(query, d.DerivedAttributeCode, d.SourceAttributeCode,
+		d.RuleExpression, d.RuleType, d.Description)
+	return err
+}
+
+// ValidateDerivationSources checks that all source attributes exist and are public
+func (r *Repository) ValidateDerivationSources(sourceAttrCodes []string) error {
+	for _, code := range sourceAttrCodes {
+		var attrClass string
+		err := r.db.Get(&attrClass, `
+			SELECT attribute_class FROM kyc_attributes WHERE code=$1
+		`, code)
+		if err != nil {
+			return fmt.Errorf("source attribute '%s' not found", code)
+		}
+		if attrClass != "Public" {
+			return fmt.Errorf("source attribute '%s' must be Public, got '%s'", code, attrClass)
+		}
+	}
+	return nil
+}

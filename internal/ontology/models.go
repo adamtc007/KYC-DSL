@@ -31,14 +31,15 @@ type Document struct {
 
 // Attribute represents a data point required for compliance
 type Attribute struct {
-	ID           int       `db:"id"`
-	Code         string    `db:"code"`
-	Name         string    `db:"name"`
-	Domain       string    `db:"domain"`
-	Description  string    `db:"description"`
-	RiskCategory string    `db:"risk_category"`
-	IsPersonal   bool      `db:"is_personal_data"`
-	CreatedAt    time.Time `db:"created_at"`
+	ID             int       `db:"id"`
+	Code           string    `db:"code"`
+	Name           string    `db:"name"`
+	Domain         string    `db:"domain"`
+	Description    string    `db:"description"`
+	RiskCategory   string    `db:"risk_category"`
+	IsPersonal     bool      `db:"is_personal_data"`
+	AttributeClass string    `db:"attribute_class"` // Public or Private
+	CreatedAt      time.Time `db:"created_at"`
 }
 
 // AttributeDocumentLink links attributes to documents that can evidence them
@@ -60,4 +61,15 @@ type DocumentRegulationLink struct {
 	RegulationCode string `db:"regulation_code"`
 	Applicability  string `db:"applicability"`
 	Jurisdiction   string `db:"jurisdiction"`
+}
+
+// AttributeDerivation represents how a private attribute is derived from public attributes
+type AttributeDerivation struct {
+	ID                   int       `db:"id"`
+	DerivedAttributeCode string    `db:"derived_attribute_code"`
+	SourceAttributeCode  string    `db:"source_attribute_code"`
+	RuleExpression       string    `db:"rule_expression"`
+	RuleType             string    `db:"rule_type"` // Boolean, Numeric, String, Lookup
+	Description          string    `db:"description"`
+	CreatedAt            time.Time `db:"created_at"`
 }

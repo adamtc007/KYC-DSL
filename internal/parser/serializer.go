@@ -104,6 +104,35 @@ func serializeCase(c *model.KycCase) string {
 		}
 	}
 
+	// Derived Attributes
+	if len(c.DerivedAttributes) > 0 {
+		sb.WriteString("  (derived-attributes\n")
+		for _, da := range c.DerivedAttributes {
+			sb.WriteString(fmt.Sprintf("    (attribute %s\n", da.DerivedAttribute))
+			if len(da.SourceAttributes) > 0 {
+				sb.WriteString("      (sources (")
+				for i, src := range da.SourceAttributes {
+					if i > 0 {
+						sb.WriteString(" ")
+					}
+					sb.WriteString(src)
+				}
+				sb.WriteString("))\n")
+			}
+			if da.RuleExpression != "" {
+				sb.WriteString(fmt.Sprintf("      (rule \"%s\")\n", da.RuleExpression))
+			}
+			if da.Jurisdiction != "" {
+				sb.WriteString(fmt.Sprintf("      (jurisdiction %s)\n", da.Jurisdiction))
+			}
+			if da.RegulationCode != "" {
+				sb.WriteString(fmt.Sprintf("      (regulation %s)\n", da.RegulationCode))
+			}
+			sb.WriteString("    )\n")
+		}
+		sb.WriteString("  )\n")
+	}
+
 	// Token
 	if c.Token != nil {
 		sb.WriteString(fmt.Sprintf("  (kyc-token \"%s\")\n", c.Token.Status))

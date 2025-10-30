@@ -28,6 +28,7 @@ type KycCase struct {
 	Ownership            []OwnershipNode
 	DataDictionary       []AttributeSource
 	DocumentRequirements []DocumentRequirement
+	DerivedAttributes    []DerivedAttribute
 }
 
 type ClientBusinessUnit struct {
@@ -79,4 +80,13 @@ type DocumentRequirement struct {
 type DocumentRef struct {
 	Code string
 	Name string
+}
+
+// DerivedAttribute represents a private attribute computed from public attributes
+type DerivedAttribute struct {
+	DerivedAttribute string
+	SourceAttributes []string
+	RuleExpression   string
+	Jurisdiction     string
+	RegulationCode   string
 }

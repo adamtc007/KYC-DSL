@@ -79,6 +79,16 @@ func ValidateOntologyRefs(db *sqlx.DB, c *model.KycCase) error {
 		}
 	}
 
+	// Get all regulation codes for validation
+	allRegs, err := repo.AllRegulationCodes()
+	if err != nil {
+		return fmt.Errorf("ontology validation failed (regulations): %w", err)
+	}
+	validRegs := make(map[string]bool)
+	for _, r := range allRegs {
+		validRegs[strings.ToUpper(r)] = true
+	}
+
 	// ----------------------------------------------------
 	// 3️⃣ Validate Jurisdictions (Lenient - just warn if empty)
 	// ----------------------------------------------------
@@ -121,6 +131,88 @@ func ValidateOntologyRefs(db *sqlx.DB, c *model.KycCase) error {
 		}
 		if len(c.Policies) > 0 {
 			fmt.Printf("   - Policy references validated\n")
+		}
+	}
+
+	// ----------------------------------------------------
+	// 5️⃣ Validate Derived Attributes
+	// ----------------------------------------------------
+	for _, da := range c.DerivedAttributes {
+		// Check that derived attribute exists and is Private
+		attr, err := repo.GetAttributeByCode(da.DerivedAttribute)
+		if err != nil {
+			return fmt.Errorf("derived attribute '%s' not found in ontology", da.DerivedAttribute)
+		}
+		if attr.AttributeClass != "Private" {
+			return fmt.Errorf("derived attribute '%s' must have attribute_class='Private', got '%s'",
+				da.DerivedAttribute, attr.AttributeClass)
+		}
+
+		// Check that all source attributes exist and are Public
+		for _, srcCode := range da.SourceAttributes {
+			srcAttr, err := repo.GetAttributeByCode(srcCode)
+			if err != nil {
+				return fmt.Errorf("derived attribute '%s' references unknown source '%s'",
+					da.DerivedAttribute, srcCode)
+			}
+			if srcAttr.AttributeClass != "Public" {
+				return fmt.Errorf("derived attribute '%s' source '%s' must be Public, got '%s'",
+					da.DerivedAttribute, srcCode, srcAttr.AttributeClass)
+			}
+		}
+
+		// Check that rule expression is not empty
+		if da.RuleExpression == "" {
+			return fmt.Errorf("derived attribute '%s' missing rule expression", da.DerivedAttribute)
+		}
+	}
+
+	// ----------------------------------------------------
+	// 5️⃣ Validate Derived Attributes Lineage
+	// ----------------------------------------------------
+	if len(c.DerivedAttributes) > 0 {
+		// Build map of valid public attributes
+		validPublicAttrs := make(map[string]bool)
+		for code := range validAttrs {
+			attr, _ := repo.GetAttributeByCode(code)
+			if attr != nil && attr.AttributeClass == "Public" {
+				validPublicAttrs[strings.ToUpper(code)] = true
+			}
+		}
+
+		// Validate each derived attribute
+		for _, der := range c.DerivedAttributes {
+			// Check that derived attribute exists and is Private
+			derivedAttr, err := repo.GetAttributeByCode(der.DerivedAttribute)
+			if err != nil {
+				return fmt.Errorf("derived attribute '%s' not found in ontology", der.DerivedAttribute)
+			}
+			if derivedAttr.AttributeClass != "Private" {
+				return fmt.Errorf("derived attribute '%s' must have attribute_class='Private', got '%s'",
+					der.DerivedAttribute, derivedAttr.AttributeClass)
+			}
+
+			// Check that rule expression is not empty
+			if der.RuleExpression == "" {
+				return fmt.Errorf("derived attribute '%s' missing rule expression", der.DerivedAttribute)
+			}
+
+			// Check that all source attributes exist and are Public
+			if len(der.SourceAttributes) == 0 {
+				return fmt.Errorf("derived attribute '%s' has no source attributes", der.DerivedAttribute)
+			}
+			for _, srcCode := range der.SourceAttributes {
+				if !validPublicAttrs[strings.ToUpper(srcCode)] {
+					return fmt.Errorf("derived attribute '%s' references unknown or non-public source attribute '%s'",
+						der.DerivedAttribute, srcCode)
+				}
+			}
+
+			// Validate regulation code if specified
+			if der.RegulationCode != "" && !validRegs[strings.ToUpper(der.RegulationCode)] {
+				return fmt.Errorf("derived attribute '%s' references unknown regulation '%s'",
+					der.DerivedAttribute, der.RegulationCode)
+			}
 		}
 	}
 

@@ -151,6 +151,40 @@ func Bind(dsl *DSL) ([]*model.KycCase, error) {
 				}
 				caseObj.DocumentRequirements = append(caseObj.DocumentRequirements, dr)
 
+			case "derived-attributes":
+				for _, attrNode := range node.Args {
+					if attrNode.Head != "attribute" {
+						continue
+					}
+					if len(attrNode.Args) == 0 {
+						continue
+					}
+					da := model.DerivedAttribute{
+						DerivedAttribute: attrNode.Args[0].Head,
+					}
+					for _, arg := range attrNode.Args[1:] {
+						switch arg.Head {
+						case "sources":
+							for _, src := range arg.Args {
+								da.SourceAttributes = append(da.SourceAttributes, src.Head)
+							}
+						case "rule":
+							if len(arg.Args) > 0 {
+								da.RuleExpression = trimQuotes(arg.Args[0].Head)
+							}
+						case "jurisdiction":
+							if len(arg.Args) > 0 {
+								da.Jurisdiction = arg.Args[0].Head
+							}
+						case "regulation":
+							if len(arg.Args) > 0 {
+								da.RegulationCode = arg.Args[0].Head
+							}
+						}
+					}
+					caseObj.DerivedAttributes = append(caseObj.DerivedAttributes, da)
+				}
+
 			default:
 				// Unknown node types ignored
 			}
