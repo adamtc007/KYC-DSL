@@ -1,5 +1,6 @@
-use tonic::{transport::Server, Request, Response, Status};
 use kyc_dsl_core::{compile_dsl, execute_plan, parser};
+use tonic::{transport::Server, Request, Response, Status};
+use tonic_reflection::server::Builder as ReflectionBuilder;
 
 // Include the generated protobuf code (suppress warnings from generated code)
 #[allow(dead_code, unused_imports, clippy::all)]
@@ -30,29 +31,27 @@ impl DslService for RustDslServer {
         // For now, we'll use a simple DSL source if not provided
         let dsl_source = format!(
             "(kyc-case {} (function {}))",
-            req.case_id,
-            req.function_name
+            req.case_id, req.function_name
         );
 
         match compile_dsl(&dsl_source).and_then(|plan| execute_plan(&plan)) {
-            Ok(_result) => {
-                Ok(Response::new(ExecuteResponse {
-                    updated_dsl: dsl_source,
-                    message: format!("Executed function '{}' on case '{}'", req.function_name, req.case_id),
-                    success: true,
-                    case_id: req.case_id,
-                    new_version: 1,
-                }))
-            }
-            Err(e) => {
-                Ok(Response::new(ExecuteResponse {
-                    updated_dsl: String::new(),
-                    message: format!("Execution failed: {}", e),
-                    success: false,
-                    case_id: req.case_id,
-                    new_version: 0,
-                }))
-            }
+            Ok(_result) => Ok(Response::new(ExecuteResponse {
+                updated_dsl: dsl_source,
+                message: format!(
+                    "Executed function '{}' on case '{}'",
+                    req.function_name, req.case_id
+                ),
+                success: true,
+                case_id: req.case_id,
+                new_version: 1,
+            })),
+            Err(e) => Ok(Response::new(ExecuteResponse {
+                updated_dsl: String::new(),
+                message: format!("Execution failed: {}", e),
+                success: false,
+                case_id: req.case_id,
+                new_version: 0,
+            })),
         }
     }
 
@@ -72,28 +71,24 @@ impl DslService for RustDslServer {
         println!("Validating DSL: {}", dsl_source);
 
         match compile_dsl(&dsl_source) {
-            Ok(_) => {
-                Ok(Response::new(ValidationResult {
-                    valid: true,
-                    errors: vec![],
-                    warnings: vec![],
-                    issues: vec![],
-                }))
-            }
-            Err(e) => {
-                Ok(Response::new(ValidationResult {
-                    valid: false,
-                    errors: vec![e.to_string()],
-                    warnings: vec![],
-                    issues: vec![ValidationIssue {
-                        severity: "error".to_string(),
-                        message: e.to_string(),
-                        code: "PARSE_ERROR".to_string(),
-                        line: 0,
-                        column: 0,
-                    }],
-                }))
-            }
+            Ok(_) => Ok(Response::new(ValidationResult {
+                valid: true,
+                errors: vec![],
+                warnings: vec![],
+                issues: vec![],
+            })),
+            Err(e) => Ok(Response::new(ValidationResult {
+                valid: false,
+                errors: vec![e.to_string()],
+                warnings: vec![],
+                issues: vec![ValidationIssue {
+                    severity: "error".to_string(),
+                    message: e.to_string(),
+                    code: "PARSE_ERROR".to_string(),
+                    line: 0,
+                    column: 0,
+                }],
+            })),
         }
     }
 
@@ -118,14 +113,12 @@ impl DslService for RustDslServer {
                     errors: vec![],
                 }))
             }
-            Err(e) => {
-                Ok(Response::new(ParseResponse {
-                    success: false,
-                    message: format!("Parse failed: {}", e),
-                    cases: vec![],
-                    errors: vec![format!("Parse error: {}", e)],
-                }))
-            }
+            Err(e) => Ok(Response::new(ParseResponse {
+                success: false,
+                message: format!("Parse failed: {}", e),
+                cases: vec![],
+                errors: vec![format!("Parse error: {}", e)],
+            })),
         }
     }
 
@@ -160,13 +153,15 @@ impl DslService for RustDslServer {
     ) -> Result<Response<AmendResponse>, Status> {
         let req = request.into_inner();
 
-        println!("Amending case '{}' with '{}'", req.case_name, req.amendment_type);
+        println!(
+            "Amending case '{}' with '{}'",
+            req.case_name, req.amendment_type
+        );
 
         // Generate amended DSL
         let amended_dsl = format!(
             "(kyc-case {}\n  (amendment {})\n  (kyc-token \"updated\"))",
-            req.case_name,
-            req.amendment_type
+            req.case_name, req.amendment_type
         );
 
         // Compute a simple hash
@@ -331,7 +326,10 @@ fn serialize_case(case: &ParsedCase) -> String {
     }
 
     if !case.client_business_unit.is_empty() {
-        dsl.push_str(&format!("  (client-business-unit {})\n", case.client_business_unit));
+        dsl.push_str(&format!(
+            "  (client-business-unit {})\n",
+            case.client_business_unit
+        ));
     }
 
     if !case.policy.is_empty() {
@@ -353,13 +351,22 @@ fn serialize_case(case: &ParsedCase) -> String {
             dsl.push_str(&format!("    (entity {})\n", ownership.entity_name));
         }
         for owner in &ownership.owners {
-            dsl.push_str(&format!("    (owner {} {}%)\n", owner.name, owner.percentage));
+            dsl.push_str(&format!(
+                "    (owner {} {}%)\n",
+                owner.name, owner.percentage
+            ));
         }
         for bo in &ownership.beneficial_owners {
-            dsl.push_str(&format!("    (beneficial-owner {} {}%)\n", bo.name, bo.percentage));
+            dsl.push_str(&format!(
+                "    (beneficial-owner {} {}%)\n",
+                bo.name, bo.percentage
+            ));
         }
         for controller in &ownership.controllers {
-            dsl.push_str(&format!("    (controller {} \"{}\")\n", controller.name, controller.role));
+            dsl.push_str(&format!(
+                "    (controller {} \"{}\")\n",
+                controller.name, controller.role
+            ));
         }
         dsl.push_str("  )\n");
     }
@@ -394,8 +401,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("Ready to accept connections...");
 
+    // Build reflection service for grpcurl compatibility
+    let reflection_service = ReflectionBuilder::configure()
+        .register_encoded_file_descriptor_set(tonic::include_file_descriptor_set!("dsl_descriptor"))
+        .build_v1()?;
+
     Server::builder()
         .add_service(DslServiceServer::new(service))
+        .add_service(reflection_service)
         .serve(addr)
         .await?;
 

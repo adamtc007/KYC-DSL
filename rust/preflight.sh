@@ -249,11 +249,102 @@ else
     check_fail "dsl_service.proto not found at ../api/proto/"
 fi
 
-# 9. Quick build check
+# 9. Validate workspace metadata
+section "Workspace Metadata"
+
+if cargo metadata --format-version=1 > /dev/null 2>&1; then
+    check_pass "Workspace metadata is valid"
+
+    WORKSPACE_MEMBERS=$(cargo metadata --format-version=1 2>/dev/null | grep -o '"kyc_dsl_[^"]*"' | wc -l)
+    if [ "$WORKSPACE_MEMBERS" -ge 2 ]; then
+        check_pass "Found $WORKSPACE_MEMBERS workspace members"
+    else
+        check_fail "Expected 2 workspace members, found $WORKSPACE_MEMBERS"
+    fi
+else
+    check_fail "Workspace metadata validation failed"
+fi
+
+# 10. Cargo check for core crate
+section "Core Crate Validation (kyc_dsl_core)"
+
+if cargo check -p kyc_dsl_core > /tmp/cargo_check_core.log 2>&1; then
+    check_pass "kyc_dsl_core compiles successfully"
+else
+    check_fail "kyc_dsl_core compilation failed"
+    echo "  See errors in /tmp/cargo_check_core.log"
+    tail -5 /tmp/cargo_check_core.log | sed 's/^/  /'
+fi
+
+# 11. Cargo check for service crate
+section "Service Crate Validation (kyc_dsl_service)"
+
+if cargo check -p kyc_dsl_service > /tmp/cargo_check_service.log 2>&1; then
+    check_pass "kyc_dsl_service compiles successfully"
+else
+    check_fail "kyc_dsl_service compilation failed"
+    echo "  See errors in /tmp/cargo_check_service.log"
+    tail -5 /tmp/cargo_check_service.log | sed 's/^/  /'
+fi
+
+# 12. Run tests
+section "Test Execution"
+
+if cargo test --no-fail-fast > /tmp/cargo_test.log 2>&1; then
+    TEST_COUNT=$(grep "test result:" /tmp/cargo_test.log | tail -1 | grep -o "[0-9]* passed" | cut -d' ' -f1)
+    check_pass "All tests passed ($TEST_COUNT tests)"
+else
+    check_fail "Some tests failed"
+    echo "  See details in /tmp/cargo_test.log"
+    grep "FAILED" /tmp/cargo_test.log | head -5 | sed 's/^/  /'
+fi
+
+# 13. Cargo clippy check
+section "Code Quality (Clippy)"
+
+if command -v cargo-clippy > /dev/null 2>&1 || rustup component list | grep -q "clippy.*installed"; then
+    if cargo clippy --all-targets --all-features -- -D warnings > /tmp/cargo_clippy.log 2>&1; then
+        check_pass "No clippy warnings"
+    else
+        CLIPPY_WARNINGS=$(grep "warning:" /tmp/cargo_clippy.log | wc -l)
+        if [ "$CLIPPY_WARNINGS" -gt 0 ]; then
+            check_warn "$CLIPPY_WARNINGS clippy warning(s) found"
+            echo "  Run 'cargo clippy --fix' to auto-fix"
+            head -10 /tmp/cargo_clippy.log | sed 's/^/  /'
+        else
+            check_fail "Clippy check failed with errors"
+            tail -10 /tmp/cargo_clippy.log | sed 's/^/  /'
+        fi
+    fi
+else
+    check_info "Clippy not available (skipping)"
+fi
+
+# 14. Cargo format check
+section "Code Formatting (rustfmt)"
+
+if command -v cargo-fmt > /dev/null 2>&1 || rustup component list | grep -q "rustfmt.*installed"; then
+    if cargo fmt --all -- --check > /tmp/cargo_fmt.log 2>&1; then
+        check_pass "Code is properly formatted"
+    else
+        check_warn "Code formatting issues found"
+        echo "  Run 'cargo fmt' to auto-format"
+    fi
+else
+    check_info "rustfmt not available (skipping)"
+fi
+
+# 15. Quick build check
 section "Build Verification"
 
 if [ -d "target" ]; then
     check_info "Build artifacts exist (cargo build has been run)"
+
+    if [ -f "target/release/kyc_dsl_service" ]; then
+        check_pass "Release binary exists: kyc_dsl_service"
+    else
+        check_info "Release binary not built yet (run 'cargo build --release')"
+    fi
 else
     check_info "No build artifacts (run 'cargo build' first time)"
 fi
@@ -271,16 +362,21 @@ if [ $FAIL -eq 0 ]; then
         echo -e "${YELLOW}⚠ $WARN warning(s) - non-critical issues${NC}"
     fi
     echo
-    echo "You can now run:"
-    echo "  ${GREEN}cd rust${NC}"
-    echo "  ${GREEN}cargo build --release${NC}    # Build in release mode"
-    echo "  ${GREEN}cargo test${NC}                # Run tests"
-    echo "  ${GREEN}cargo run${NC}                 # Start Rust gRPC service"
+    echo "✅ All systems operational! You can now:"
+    echo
+    echo "  ${GREEN}cargo build --release${NC}         # Build optimized binaries"
+    echo "  ${GREEN}cargo run -p kyc_dsl_service${NC}  # Start Rust gRPC service (port 50060)"
+    echo "  ${GREEN}cargo test${NC}                    # Run all tests"
+    echo "  ${GREEN}cargo clippy --fix${NC}            # Auto-fix linting issues"
+    echo "  ${GREEN}cargo fmt${NC}                     # Auto-format code"
     echo
     echo "Or use Make targets from project root:"
-    echo "  ${GREEN}make rust-build${NC}           # Build Rust workspace"
-    echo "  ${GREEN}make rust-test${NC}            # Run Rust tests"
-    echo "  ${GREEN}make run-rust${NC}             # Start Rust service"
+    echo "  ${GREEN}make rust-build${NC}               # Build Rust workspace"
+    echo "  ${GREEN}make rust-test${NC}                # Run Rust tests"
+    echo "  ${GREEN}make rust-service${NC}             # Start Rust service"
+    echo
+    echo "Test the service with:"
+    echo "  ${GREEN}grpcurl -plaintext localhost:50060 list${NC}"
     echo
     exit 0
 else
@@ -292,10 +388,15 @@ else
     echo "Please fix the critical issues above and run again."
     echo
     echo "Quick fixes:"
-    echo "  Rust:     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    echo "  protoc:   brew install protobuf (macOS) or apt install protobuf-compiler (Ubuntu)"
-    echo "  Go:       brew install go (macOS) or download from https://go.dev/dl/"
+    echo "  Rust:       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    echo "  Components: rustup component add clippy rustfmt"
+    echo "  protoc:     brew install protobuf (macOS) or apt install protobuf-compiler (Ubuntu)"
+    echo "  Go:         brew install go (macOS) or download from https://go.dev/dl/"
     echo "  PostgreSQL: brew install postgresql@15 && brew services start postgresql@15"
+    echo "  grpcurl:    brew install grpcurl (macOS)"
+    echo
+    echo "Clean rebuild:"
+    echo "  cargo clean && cargo build --release"
     echo
     exit 1
 fi
