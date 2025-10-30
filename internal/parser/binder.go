@@ -31,7 +31,7 @@ func Bind(dsl *DSL) ([]*model.KycCase, error) {
 
 			case "policy":
 				caseObj.Policies = append(caseObj.Policies, model.KycPolicy{
-					Code: node.Args[0].Head,
+					Code: trimQuotes(node.Args[0].Head),
 				})
 
 			case "function":
@@ -44,12 +44,12 @@ func Bind(dsl *DSL) ([]*model.KycCase, error) {
 
 			case "obligation":
 				caseObj.Obligations = append(caseObj.Obligations, model.KycObligation{
-					PolicyCode: node.Args[0].Head,
+					PolicyCode: trimQuotes(node.Args[0].Head),
 				})
 
 			case "kyc-token":
 				caseObj.Token = &model.KycToken{
-					Status: node.Args[0].Head,
+					Status: trimQuotes(node.Args[0].Head),
 				}
 			default:
 				// Unknown node types ignored

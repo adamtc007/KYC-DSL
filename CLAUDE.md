@@ -9,16 +9,32 @@ KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Cus
 ## Common Development Commands
 
 ### Building and Running
-- `go build ./cmd/kycctl` - Build the main CLI tool
-- `go run ./cmd/kycctl <dsl-file>` - Run the CLI tool with a DSL file
-- `go run ./cmd/kycctl sample_case.dsl` - Run with the included sample
+- `make build` - Build the main CLI tool with greenteagc GC experiment
+- `make run` - Build and run with the sample case
+- `make run-file FILE=<dsl-file>` - Build and run with a specific DSL file
+- `make install` - Install binary to GOPATH/bin
+- `make info` - Show build configuration
+
+**Legacy commands (use Makefile instead):**
+- `go build ./cmd/kycctl` - Build without greenteagc experiment
+- `GOEXPERIMENT=greenteagc go build ./cmd/kycctl` - Manual build with experiment
 
 ### Testing
-- `go test ./...` - Run all tests
-- `go test -v ./internal/parser` - Run parser tests with verbose output
-- `go test ./internal/...` - Test all internal packages
+- `make test` - Run all tests with greenteagc experiment
+- `make test-verbose` - Run all tests with verbose output
+- `make test-parser` - Run parser tests specifically
 
-### Dependencies
+**Legacy commands:**
+- `go test ./...` - Run all tests without experiment
+- `GOEXPERIMENT=greenteagc go test ./...` - Manual test with experiment
+
+### Dependencies and Maintenance
+- `make deps` - Download and tidy dependencies
+- `make fmt` - Format all Go code
+- `make lint` - Run golangci-lint
+- `make clean` - Remove build artifacts
+
+**Legacy commands:**
 - `go mod tidy` - Clean up and sync dependencies
 - `go mod download` - Download dependencies
 
