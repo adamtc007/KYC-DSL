@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -9,7 +10,16 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const DEBUG = true
+
+func debugLog(format string, args ...interface{}) {
+	if DEBUG {
+		log.Printf("[STORAGE DEBUG] "+format, args...)
+	}
+}
+
 func ConnectPostgres() (*sqlx.DB, error) {
+	debugLog("=== STORAGE BREAKPOINT 1: ConnectPostgres called ===")
 	host := os.Getenv("PGHOST")
 	if host == "" {
 		host = "localhost"
@@ -28,15 +38,22 @@ func ConnectPostgres() (*sqlx.DB, error) {
 		dbname = "kyc_dsl"
 	}
 
+	debugLog("Connection parameters: host=%s, port=%s, user=%s, dbname=%s", host, port, user, dbname)
+
 	connStr := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable", host, port, user, dbname)
 	if password != "" {
 		connStr = fmt.Sprintf("%s password=%s", connStr, password)
 	}
+
+	debugLog("=== STORAGE BREAKPOINT 2: Attempting to connect ===")
 	db, err := sqlx.Connect("postgres", connStr)
 	if err != nil {
+		debugLog("Connection failed: %v", err)
 		return nil, fmt.Errorf("connect failed: %w", err)
 	}
+	debugLog("Connection successful")
 
+	debugLog("=== STORAGE BREAKPOINT 3: Creating schema ===")
 	schema := `
 	CREATE TABLE IF NOT EXISTS kyc_cases (
 		id SERIAL PRIMARY KEY,
@@ -47,11 +64,23 @@ func ConnectPostgres() (*sqlx.DB, error) {
 	);
 	`
 	db.MustExec(schema)
+	debugLog("Schema created/verified successfully")
 	return db, nil
 }
 
 func InsertCase(db *sqlx.DB, name string) error {
+	debugLog("=== STORAGE BREAKPOINT 4: InsertCase called with name='%s' ===", name)
 	query := `INSERT INTO kyc_cases (name, status, last_updated) VALUES ($1, 'pending', $2)`
-	_, err := db.Exec(query, name, time.Now())
-	return err
+	debugLog("Executing query: %s", query)
+	debugLog("Parameters: name=%s, timestamp=%v", name, time.Now())
+
+	result, err := db.Exec(query, name, time.Now())
+	if err != nil {
+		debugLog("Insert failed with error: %v", err)
+		return err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	debugLog("=== STORAGE BREAKPOINT 5: Insert successful, rows affected: %d ===", rowsAffected)
+	return nil
 }

@@ -1,0 +1,80 @@
+[
+  {
+    "label": "Run KYC DSL (sample_case.dsl)",
+    "command": "go",
+    "args": ["run", "./cmd/kycctl", "sample_case.dsl"],
+    "tags": ["run"]
+  },
+  {
+    "label": "Build KYC DSL",
+    "command": "go",
+    "args": ["build", "-o", "kycctl", "./cmd/kycctl"],
+    "tags": ["build"]
+  },
+  {
+    "label": "Run Tests",
+    "command": "go",
+    "args": ["test", "-v", "./..."],
+    "tags": ["test"]
+  },
+  {
+    "label": "Run Tests (Parser)",
+    "command": "go",
+    "args": ["test", "-v", "./internal/parser"],
+    "tags": ["test"]
+  },
+  {
+    "label": "Debug KYC DSL with Delve",
+    "command": "dlv",
+    "args": ["debug", "./cmd/kycctl", "--", "sample_case.dsl"],
+    "tags": ["debug"]
+  },
+  {
+    "label": "Debug Tests (Parser)",
+    "command": "dlv",
+    "args": ["test", "./internal/parser"],
+    "tags": ["debug", "test"]
+  },
+  {
+    "label": "Lint (golangci-lint)",
+    "command": "golangci-lint",
+    "args": ["run", "./..."],
+    "tags": ["lint"]
+  },
+  {
+    "label": "Format Code",
+    "command": "go",
+    "args": ["fmt", "./..."],
+    "tags": ["format"]
+  },
+  {
+    "label": "Vet Code",
+    "command": "go",
+    "args": ["vet", "./..."],
+    "tags": ["lint"]
+  },
+  {
+    "label": "Clean Build Cache",
+    "command": "go",
+    "args": ["clean", "-cache"],
+    "tags": ["clean"]
+  },
+  {
+    "label": "Database: View All Cases",
+    "command": "psql",
+    "args": ["-d", "kyc_dsl", "-c", "SELECT * FROM kyc_cases ORDER BY id;"],
+    "tags": ["database"]
+  },
+  {
+    "label": "Database: View Latest Cases",
+    "command": "psql",
+    "args": ["-d", "kyc_dsl", "-c", "SELECT DISTINCT ON (name) * FROM kyc_cases ORDER BY name, last_updated DESC;"],
+    "tags": ["database"]
+  },
+  {
+    "label": "Database: Clear All Cases",
+    "command": "psql",
+    "args": ["-d", "kyc_dsl", "-c", "TRUNCATE TABLE kyc_cases RESTART IDENTITY;"],
+    "tags": ["database", "clean"]
+  }
+]
