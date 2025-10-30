@@ -72,6 +72,14 @@ func ConnectPostgres() (*sqlx.DB, error) {
 		hash TEXT,
 		created_at TIMESTAMP DEFAULT NOW()
 	);
+
+	CREATE TABLE IF NOT EXISTS kyc_grammar (
+		id SERIAL PRIMARY KEY,
+		name TEXT UNIQUE,
+		version TEXT,
+		ebnf TEXT,
+		created_at TIMESTAMP DEFAULT NOW()
+	);
 	`
 	db.MustExec(schema)
 	debugLog("Schema created/verified successfully")
@@ -137,4 +145,28 @@ func SaveCaseVersion(db *sqlx.DB, caseName, dsl string) error {
 	}
 	fmt.Printf("📜 Case %s saved version %d (hash=%s)\n", caseName, nextVer, hash[:12])
 	return nil
+}
+
+func InsertGrammar(db *sqlx.DB, name, version, ebnf string) error {
+	query := `
+		INSERT INTO kyc_grammar (name, version, ebnf)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (name) DO UPDATE
+		SET version = EXCLUDED.version, ebnf = EXCLUDED.ebnf, created_at = NOW();
+	`
+	_, err := db.Exec(query, name, version, ebnf)
+	if err != nil {
+		return fmt.Errorf("insert grammar failed: %w", err)
+	}
+	fmt.Printf("📘 Grammar '%s' (v%s) stored in Postgres.\n", name, version)
+	return nil
+}
+
+func GetGrammar(db *sqlx.DB, name string) (string, error) {
+	var ebnf string
+	err := db.Get(&ebnf, "SELECT ebnf FROM kyc_grammar WHERE name=$1", name)
+	if err != nil {
+		return "", err
+	}
+	return ebnf, nil
 }
