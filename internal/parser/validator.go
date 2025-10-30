@@ -18,6 +18,10 @@ func ValidateDSL(db *sqlx.DB, cases []*model.KycCase, ebnf string) error {
 		if err := validateCaseSemantics(db, c); err != nil {
 			return fmt.Errorf("case %s semantic error: %w", c.Name, err)
 		}
+		// --- Ontology integrity checks ---
+		if err := ValidateOntologyRefs(db, c); err != nil {
+			return fmt.Errorf("case %s ontology reference validation failed: %w", c.Name, err)
+		}
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/adamtc007/KYC-DSL/internal/model"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -50,9 +51,22 @@ func ConnectPostgres() (*sqlx.DB, error) {
 	db, err := sqlx.Connect("postgres", connStr)
 	if err != nil {
 		debugLog("Connection failed: %v", err)
-		return nil, fmt.Errorf("connect failed: %w", err)
+		return nil, fmt.Errorf("postgres connection failed (host=%s, port=%s, dbname=%s): %w", host, port, dbname, err)
 	}
 	debugLog("Connection successful")
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			debugLog("Failed to close database after ping failure: %v", closeErr)
+		}
+		debugLog("Connection ping failed: %v", err)
+		return nil, fmt.Errorf("postgres ping failed: %w", err)
+	}
+
+	// Set connection pool limits
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
 
 	debugLog("=== STORAGE BREAKPOINT 3: Creating schema ===")
 	schema := `
@@ -90,12 +104,22 @@ func ConnectPostgres() (*sqlx.DB, error) {
 		created_at TIMESTAMP DEFAULT NOW()
 	);
 	`
-	db.MustExec(schema)
+	if _, err := db.Exec(schema); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			debugLog("Failed to close database after schema error: %v", closeErr)
+		}
+		debugLog("Schema creation failed: %v", err)
+		return nil, fmt.Errorf("schema creation failed: %w", err)
+	}
 	debugLog("Schema created/verified successfully")
 	return db, nil
 }
 
 func InsertCase(db *sqlx.DB, name string) error {
+	if name == "" {
+		return fmt.Errorf("case name cannot be empty")
+	}
+
 	debugLog("=== STORAGE BREAKPOINT 4: InsertCase called with name='%s' ===", name)
 	query := `INSERT INTO kyc_cases (name, status, last_updated) VALUES ($1, 'pending', $2)`
 	debugLog("Executing query: %s", query)
@@ -203,13 +227,23 @@ func SaveCaseVersion(db *sqlx.DB, caseName, dsl string) error {
 
 // GetLatestDSL fetches the most recent serialized DSL for a case.
 func GetLatestDSL(db *sqlx.DB, caseName string) (string, error) {
+	if db == nil {
+		return "", fmt.Errorf("database connection is nil")
+	}
+	if caseName == "" {
+		return "", fmt.Errorf("case name is required")
+	}
+
 	var dsl string
 	err := db.Get(&dsl, `
 		SELECT dsl_snapshot FROM kyc_case_versions
 		WHERE case_name=$1
 		ORDER BY version DESC LIMIT 1
 	`, caseName)
-	return dsl, err
+	if err != nil {
+		return "", fmt.Errorf("get latest DSL failed for case %s: %w", caseName, err)
+	}
+	return dsl, nil
 }
 
 // LogAmendment records an applied mutation step.
@@ -243,4 +277,80 @@ func GetGrammar(db *sqlx.DB, name string) (string, error) {
 		return "", err
 	}
 	return ebnf, nil
+}
+
+// RecordValidationResult persists the outcome of validation for audit trail.
+// Compliant with FCA SYSC, MAS 626 §4.2, HKMA AML §3.6, EU AMLD6 Article 30.
+func RecordValidationResult(db *sqlx.DB, v model.CaseValidation) error {
+	if db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	query := `
+		INSERT INTO kyc_case_validations
+		(case_name, version, grammar_version, ontology_version, validator_actor,
+		 validation_status, error_message, total_checks, passed_checks, failed_checks)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		RETURNING id
+	`
+	var id int
+	err := db.QueryRow(query,
+		v.CaseName, v.Version, v.GrammarVersion, v.OntologyVersion, v.ValidatorActor,
+		v.ValidationStatus, v.ErrorMessage, v.TotalChecks, v.PassedChecks, v.FailedChecks,
+	).Scan(&id)
+
+	if err != nil {
+		debugLog("RecordValidationResult failed: %v", err)
+		return fmt.Errorf("record validation result failed (case=%s): %w", v.CaseName, err)
+	}
+
+	debugLog("Validation recorded: case=%s, status=%s, id=%d", v.CaseName, v.ValidationStatus, id)
+	return nil
+}
+
+// RecordValidationFinding records a detailed validation finding.
+func RecordValidationFinding(db *sqlx.DB, f model.ValidationFinding) error {
+	if db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	query := `
+		INSERT INTO kyc_validation_findings
+		(validation_id, check_type, check_name, check_status, check_message, entity_ref, severity)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+	`
+	_, err := db.Exec(query,
+		f.ValidationID, f.CheckType, f.CheckName, f.CheckStatus, f.CheckMessage, f.EntityRef, f.Severity)
+
+	if err != nil {
+		debugLog("RecordValidationFinding failed: %v", err)
+		return fmt.Errorf("record validation finding failed: %w", err)
+	}
+
+	return nil
+}
+
+// GetValidationHistory retrieves validation audit trail for a case.
+func GetValidationHistory(db *sqlx.DB, caseName string) ([]model.CaseValidation, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database connection is nil")
+	}
+	if caseName == "" {
+		return nil, fmt.Errorf("case name is required")
+	}
+
+	var validations []model.CaseValidation
+	query := `
+		SELECT id, case_name, version, validation_time, grammar_version, ontology_version,
+		       validator_actor, validation_status, error_message, total_checks,
+		       passed_checks, failed_checks, created_at
+		FROM kyc_case_validations
+		WHERE case_name = $1
+		ORDER BY validation_time DESC
+	`
+	err := db.Select(&validations, query, caseName)
+	if err != nil {
+		return nil, fmt.Errorf("get validation history failed for case %s: %w", caseName, err)
+	}
+	return validations, nil
 }

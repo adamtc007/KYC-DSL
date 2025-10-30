@@ -132,3 +132,33 @@ func (r *Repository) DebugPrintOntologySummary() error {
 	}
 	return nil
 }
+
+// AllDocumentCodes returns all document codes for validation
+func (r *Repository) AllDocumentCodes() ([]string, error) {
+	var codes []string
+	err := r.db.Select(&codes, "SELECT code FROM kyc_documents ORDER BY code")
+	return codes, err
+}
+
+// AllAttributeCodes returns all attribute codes for validation
+func (r *Repository) AllAttributeCodes() ([]string, error) {
+	var codes []string
+	err := r.db.Select(&codes, "SELECT code FROM kyc_attributes ORDER BY code")
+	return codes, err
+}
+
+// AllRegulationCodes returns all regulation codes for validation
+func (r *Repository) AllRegulationCodes() ([]string, error) {
+	var codes []string
+	err := r.db.Select(&codes, "SELECT code FROM kyc_regulations ORDER BY code")
+	return codes, err
+}
+
+// DocumentLinkedToRegulation checks if a document is linked to at least one regulation
+func (r *Repository) DocumentLinkedToRegulation(docCode string) (bool, error) {
+	var count int
+	err := r.db.Get(&count, `
+		SELECT COUNT(*) FROM kyc_doc_reg_links WHERE document_code=$1
+	`, docCode)
+	return count > 0, err
+}

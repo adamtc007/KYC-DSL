@@ -56,7 +56,7 @@ func RunProcessCommand(filePath string) error {
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			log.Printf("failed to close database: %v", closeErr)
+			log.Printf("WARNING: failed to close database: %v", closeErr)
 		}
 	}()
 
@@ -79,7 +79,48 @@ func RunProcessCommand(filePath string) error {
 		return fmt.Errorf("execution failed: %w", err)
 	}
 
-	fmt.Println("\n🧾 DSL snapshot stored and versioned successfully.")
+	fmt.Printf("\n🧾 DSL snapshot stored and versioned successfully (case: %s)\n", cases[0].Name)
+	return nil
+}
+
+// RunValidateCommand validates an existing case and records audit trail.
+func RunValidateCommand(caseName, actor string) error {
+	db, err := storage.ConnectPostgres()
+	if err != nil {
+		return fmt.Errorf("database connection failed: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("WARNING: failed to close database: %v", closeErr)
+		}
+	}()
+
+	// Load most recent version
+	dsl, err := storage.GetLatestDSL(db, caseName)
+	if err != nil {
+		return fmt.Errorf("failed to load case: %w", err)
+	}
+
+	// Parse and bind
+	tree, err := parser.Parse(strings.NewReader(dsl))
+	if err != nil {
+		return fmt.Errorf("parse error: %w", err)
+	}
+	cases, err := parser.Bind(tree)
+	if err != nil {
+		return fmt.Errorf("bind error: %w", err)
+	}
+	if len(cases) == 0 {
+		return fmt.Errorf("no case found")
+	}
+	c := cases[0]
+
+	// Validate with audit trail
+	if err := parser.ValidateCaseWithAudit(db, c, actor); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	fmt.Printf("✅ Case %s validated and audit logged.\n", caseName)
 	return nil
 }
 
@@ -91,7 +132,7 @@ func RunAmendCommand(caseName, step string) error {
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			log.Printf("failed to close database: %v", closeErr)
+			log.Printf("WARNING: failed to close database: %v", closeErr)
 		}
 	}()
 
@@ -134,6 +175,7 @@ func RunAmendCommand(caseName, step string) error {
 		return fmt.Errorf("amendment failed: %w", err)
 	}
 
+	fmt.Printf("✅ Amendment '%s' applied successfully to case %s\n", step, caseName)
 	return nil
 }
 
@@ -145,7 +187,7 @@ func RunOntologyCommand() error {
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			log.Printf("failed to close database: %v", closeErr)
+			log.Printf("WARNING: failed to close database: %v", closeErr)
 		}
 	}()
 
@@ -180,12 +222,14 @@ func ShowUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  kycctl grammar                      - Store grammar definition in database")
 	fmt.Println("  kycctl ontology                     - Display regulatory data ontology")
+	fmt.Println("  kycctl validate <case>              - Validate case and record audit trail")
 	fmt.Println("  kycctl <dsl-file>                   - Parse and process a DSL file")
 	fmt.Println("  kycctl amend <case> --step=<phase>  - Apply incremental amendment to case")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  kycctl grammar")
 	fmt.Println("  kycctl ontology")
+	fmt.Println("  kycctl validate BLACKROCK-GLOBAL-EQUITY-FUND")
 	fmt.Println("  kycctl sample_case.dsl")
 	fmt.Println("  kycctl amend AVIVA-EU-EQUITY-FUND --step=policy-discovery")
 	fmt.Println()
@@ -218,6 +262,21 @@ func Run(args []string) {
 
 	case "ontology":
 		if err := RunOntologyCommand(); err != nil {
+			log.Fatal(err)
+		}
+
+	case "validate":
+		if len(args) < 2 {
+			fmt.Println("Error: validate command requires case name")
+			ShowUsage()
+			log.Fatal("missing case name")
+		}
+		caseName := args[1]
+		actor := "System" // Default actor
+		if len(args) >= 3 && strings.HasPrefix(args[2], "--actor=") {
+			actor = strings.TrimPrefix(args[2], "--actor=")
+		}
+		if err := RunValidateCommand(caseName, actor); err != nil {
 			log.Fatal(err)
 		}
 

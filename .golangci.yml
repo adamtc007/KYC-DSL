@@ -47,6 +47,12 @@ issues:
         - gocyclo
       text: "cyclomatic complexity.*of func `serializeCase`"
 
+    # Allow high complexity in ontology validator - validates many reference types
+    - path: internal/parser/validator_ontology.go
+      linters:
+        - gocyclo
+      text: "cyclomatic complexity.*of func `ValidateOntologyRefs`"
+
   exclude-use-default: false
 
 linters-settings:
