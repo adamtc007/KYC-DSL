@@ -8,6 +8,7 @@ import (
 	"github.com/adamtc007/KYC-DSL/internal/amend"
 	"github.com/adamtc007/KYC-DSL/internal/engine"
 	"github.com/adamtc007/KYC-DSL/internal/model"
+	"github.com/adamtc007/KYC-DSL/internal/ontology"
 	"github.com/adamtc007/KYC-DSL/internal/parser"
 	"github.com/adamtc007/KYC-DSL/internal/storage"
 )
@@ -96,30 +97,61 @@ func RunAmendCommand(caseName, step string) error {
 
 	// Map step names to mutation functions
 	var mutation func(*model.KycCase)
-	switch step {
-	case "policy-discovery":
-		mutation = amend.AddPolicyDiscovery
-	case "document-solicitation":
-		mutation = amend.AddDocumentSolicitation
-	case "ownership-discovery":
-		mutation = amend.AddOwnershipStructure
-	case "risk-assessment":
-		mutation = amend.AddRiskAssessment
-	case "regulator-notify":
-		mutation = amend.AddRegulatorNotification
-	case "approve":
-		mutation = amend.ApproveCase
-	case "decline":
-		mutation = amend.DeclineCase
-	case "review":
-		mutation = amend.RequestReviewCase
-	default:
-		return fmt.Errorf("unknown amendment step: %s", step)
+
+	// Special handling for ontology-aware amendments
+	if step == "document-discovery" {
+		repo := ontology.NewRepository(db)
+		mutation = func(c *model.KycCase) {
+			if err := amend.AddDocumentDiscovery(c, repo); err != nil {
+				log.Printf("Error in document discovery: %v", err)
+			}
+		}
+	} else {
+		switch step {
+		case "policy-discovery":
+			mutation = amend.AddPolicyDiscovery
+		case "document-solicitation":
+			mutation = amend.AddDocumentSolicitation
+		case "ownership-discovery":
+			mutation = amend.AddOwnershipStructure
+		case "risk-assessment":
+			mutation = amend.AddRiskAssessment
+		case "regulator-notify":
+			mutation = amend.AddRegulatorNotification
+		case "approve":
+			mutation = amend.ApproveCase
+		case "decline":
+			mutation = amend.DeclineCase
+		case "review":
+			mutation = amend.RequestReviewCase
+		default:
+			return fmt.Errorf("unknown amendment step: %s", step)
+		}
 	}
 
 	// Apply the amendment
 	if err := amend.ApplyAmendment(db, caseName, step, mutation); err != nil {
 		return fmt.Errorf("amendment failed: %w", err)
+	}
+
+	return nil
+}
+
+// RunOntologyCommand displays the regulatory data ontology summary.
+func RunOntologyCommand() error {
+	db, err := storage.ConnectPostgres()
+	if err != nil {
+		return fmt.Errorf("database connection failed: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("failed to close database: %v", closeErr)
+		}
+	}()
+
+	repo := ontology.NewRepository(db)
+	if err := repo.DebugPrintOntologySummary(); err != nil {
+		return fmt.Errorf("ontology query failed: %w", err)
 	}
 
 	return nil
@@ -147,17 +179,20 @@ func getFunctionNames(c *model.KycCase) []string {
 func ShowUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  kycctl grammar                      - Store grammar definition in database")
+	fmt.Println("  kycctl ontology                     - Display regulatory data ontology")
 	fmt.Println("  kycctl <dsl-file>                   - Parse and process a DSL file")
 	fmt.Println("  kycctl amend <case> --step=<phase>  - Apply incremental amendment to case")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  kycctl grammar")
+	fmt.Println("  kycctl ontology")
 	fmt.Println("  kycctl sample_case.dsl")
 	fmt.Println("  kycctl amend AVIVA-EU-EQUITY-FUND --step=policy-discovery")
 	fmt.Println()
 	fmt.Println("Amendment steps:")
 	fmt.Println("  policy-discovery        - Add policy discovery function and policies")
 	fmt.Println("  document-solicitation   - Add document solicitation and obligations")
+	fmt.Println("  document-discovery      - Auto-populate documents from regulatory ontology")
 	fmt.Println("  ownership-discovery     - Add ownership structure and control hierarchy")
 	fmt.Println("  risk-assessment         - Add risk assessment function")
 	fmt.Println("  regulator-notify        - Add regulator notification")
@@ -178,6 +213,11 @@ func Run(args []string) {
 	switch command {
 	case "grammar":
 		if err := RunGrammarCommand(); err != nil {
+			log.Fatal(err)
+		}
+
+	case "ontology":
+		if err := RunOntologyCommand(); err != nil {
 			log.Fatal(err)
 		}
 

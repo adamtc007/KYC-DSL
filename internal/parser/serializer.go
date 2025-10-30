@@ -72,6 +72,38 @@ func serializeCase(c *model.KycCase) string {
 		sb.WriteString("  )\n")
 	}
 
+	// Data Dictionary
+	if len(c.DataDictionary) > 0 {
+		sb.WriteString("  (data-dictionary\n")
+		for _, src := range c.DataDictionary {
+			sb.WriteString(fmt.Sprintf("    (attribute %s\n", src.AttributeCode))
+			if src.PrimarySource != "" {
+				sb.WriteString(fmt.Sprintf("      (primary-source (document %s))\n", src.PrimarySource))
+			}
+			if src.SecondarySource != "" {
+				sb.WriteString(fmt.Sprintf("      (secondary-source (document %s))\n", src.SecondarySource))
+			}
+			if src.TertiarySource != "" {
+				sb.WriteString(fmt.Sprintf("      (tertiary-source \"%s\")\n", src.TertiarySource))
+			}
+			sb.WriteString("    )\n")
+		}
+		sb.WriteString("  )\n")
+	}
+
+	// Document Requirements
+	if len(c.DocumentRequirements) > 0 {
+		for _, dr := range c.DocumentRequirements {
+			sb.WriteString("  (document-requirements\n")
+			sb.WriteString(fmt.Sprintf("    (jurisdiction %s)\n", dr.Jurisdiction))
+			sb.WriteString("    (required\n")
+			for _, d := range dr.Documents {
+				sb.WriteString(fmt.Sprintf("      (document %s \"%s\")\n", d.Code, d.Name))
+			}
+			sb.WriteString("    )\n  )\n")
+		}
+	}
+
 	// Token
 	if c.Token != nil {
 		sb.WriteString(fmt.Sprintf("  (kyc-token \"%s\")\n", c.Token.Status))

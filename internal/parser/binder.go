@@ -8,6 +8,10 @@ import (
 	"github.com/adamtc007/KYC-DSL/internal/model"
 )
 
+const (
+	nodeTypeDocument = "document"
+)
+
 // Bind converts a parsed DSL AST into typed model structs.
 func Bind(dsl *DSL) ([]*model.KycCase, error) {
 	var cases []*model.KycCase
@@ -85,6 +89,67 @@ func Bind(dsl *DSL) ([]*model.KycCase, error) {
 						}
 					}
 				}
+
+			case "data-dictionary":
+				for _, attrNode := range node.Args {
+					if attrNode.Head != "attribute" {
+						continue
+					}
+					if len(attrNode.Args) == 0 {
+						continue
+					}
+					src := model.AttributeSource{AttributeCode: attrNode.Args[0].Head}
+					for _, s := range attrNode.Args[1:] {
+						switch s.Head {
+						case "primary-source":
+							if len(s.Args) > 0 {
+								if s.Args[0].Head == nodeTypeDocument && len(s.Args[0].Args) > 0 {
+									src.PrimarySource = s.Args[0].Args[0].Head
+								} else {
+									src.PrimarySource = trimQuotes(s.Args[0].Head)
+								}
+							}
+						case "secondary-source":
+							if len(s.Args) > 0 {
+								if s.Args[0].Head == nodeTypeDocument && len(s.Args[0].Args) > 0 {
+									src.SecondarySource = s.Args[0].Args[0].Head
+								} else {
+									src.SecondarySource = trimQuotes(s.Args[0].Head)
+								}
+							}
+						case "tertiary-source":
+							if len(s.Args) > 0 {
+								if s.Args[0].Head == nodeTypeDocument && len(s.Args[0].Args) > 0 {
+									src.TertiarySource = s.Args[0].Args[0].Head
+								} else {
+									src.TertiarySource = trimQuotes(s.Args[0].Head)
+								}
+							}
+						}
+					}
+					caseObj.DataDictionary = append(caseObj.DataDictionary, src)
+				}
+
+			case "document-requirements":
+				var dr model.DocumentRequirement
+				for _, arg := range node.Args {
+					switch arg.Head {
+					case "jurisdiction":
+						if len(arg.Args) > 0 {
+							dr.Jurisdiction = arg.Args[0].Head
+						}
+					case "required":
+						for _, doc := range arg.Args {
+							if doc.Head == nodeTypeDocument && len(doc.Args) >= 2 {
+								dr.Documents = append(dr.Documents, model.DocumentRef{
+									Code: doc.Args[0].Head,
+									Name: trimQuotes(doc.Args[1].Head),
+								})
+							}
+						}
+					}
+				}
+				caseObj.DocumentRequirements = append(caseObj.DocumentRequirements, dr)
 
 			default:
 				// Unknown node types ignored

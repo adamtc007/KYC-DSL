@@ -15,6 +15,9 @@ KYC-DSL is a Go-based system that parses S-expression formatted DSL files contai
 - 🔒 **Content Integrity** - SHA-256 hashing for audit trail
 - 📜 **Version Control** - Automatic versioning of case snapshots
 - 🗄️ **PostgreSQL Storage** - Persistent storage with complete history
+- 🏢 **Ownership & Control** - Legal owners, beneficial owners, controllers (v1.1)
+- ✅ **Advanced Validation** - Ownership percentages, duplicates, structural checks
+- 🔄 **Amendment System** - Incremental case evolution through lifecycle phases
 - 🧪 **Comprehensive Testing** - Unit tests for all core components
 - ⚡ **Green Tea GC** - Built with `GOEXPERIMENT=greenteagc` for enhanced performance
 
@@ -83,6 +86,19 @@ This will:
 4. Serialize back to DSL text
 5. Store with automatic versioning
 
+#### Apply Amendments
+
+```bash
+# Add policy discovery
+./bin/kycctl amend CASE-NAME --step=policy-discovery
+
+# Add ownership structure
+./bin/kycctl amend CASE-NAME --step=ownership-discovery
+
+# Finalize case
+./bin/kycctl amend CASE-NAME --step=approve
+```
+
 #### Get Help
 
 ```bash
@@ -109,19 +125,20 @@ KYC cases are defined using S-expressions:
 
 ### Valid Function Names
 
-- `DISCOVER-POLICIES`
-- `SOLICIT-DOCUMENTS`
-- `EXTRACT-DATA`
-- `VERIFY-OWNERSHIP`
-- `ASSESS-RISK`
-- `REGULATOR-NOTIFY`
+- `DISCOVER-POLICIES` - Policy discovery phase
+- `SOLICIT-DOCUMENTS` - Document solicitation phase
+- `EXTRACT-DATA` - Data extraction
+- `BUILD-OWNERSHIP-TREE` - Ownership structure building
+- `VERIFY-OWNERSHIP` - Ownership verification
+- `ASSESS-RISK` - Risk assessment phase
+- `REGULATOR-NOTIFY` - Regulatory notification
 
 ### Valid Token States
 
-- `pending`
-- `approved`
-- `declined`
-- `review`
+- `pending` - Initial state
+- `approved` - Case approved
+- `declined` - Case declined
+- `review` - Under review
 
 ## Project Structure
 
@@ -143,11 +160,16 @@ KYC-DSL/
 │   │   └── model.go
 │   ├── engine/           # Execution engine
 │   │   └── engine.go
-│   └── storage/          # PostgreSQL layer
-│       └── postgres.go
+│   ├── storage/          # PostgreSQL layer
+│   │   └── postgres.go
+│   └── amend/            # Amendment system
+│       ├── amend.go      # Core amendment engine
+│       ├── mutations.go  # Predefined mutations
+│       └── transitions.go # Lifecycle phases
 ├── Makefile              # Build automation
 ├── verify.sh             # Verification script
 ├── sample_case.dsl       # Example DSL file
+├── ownership_case.dsl    # Ownership example
 └── CLAUDE.md             # Project documentation
 ```
 
@@ -166,6 +188,38 @@ make deps               # Download dependencies
 make fmt                # Format code
 make lint               # Run golangci-lint
 make verify             # Run comprehensive checks
+```
+
+### Amendment Commands
+
+```bash
+# Policy discovery phase
+kycctl amend CASE-NAME --step=policy-discovery
+
+# Document solicitation phase  
+kycctl amend CASE-NAME --step=document-solicitation
+
+# Ownership & control phase
+kycctl amend CASE-NAME --step=ownership-discovery
+
+# Risk assessment phase
+kycctl amend CASE-NAME --step=risk-assessment
+
+# Finalization
+kycctl amend CASE-NAME --step=approve
+kycctl amend CASE-NAME --step=decline
+kycctl amend CASE-NAME --step=review
+```
+
+### Amendment Commands
+
+```bash
+# Evolve cases through lifecycle phases
+kycctl amend <case> --step=policy-discovery
+kycctl amend <case> --step=document-solicitation
+kycctl amend <case> --step=ownership-discovery
+kycctl amend <case> --step=risk-assessment
+kycctl amend <case> --step=approve
 ```
 
 ### Running Tests
@@ -233,6 +287,12 @@ DSL File → Tokenize → Parse → AST → Bind → Model
 **`kyc_policies`** - Policy registry
 - `id`, `code`, `description`, `created_at`
 
+**`kyc_case_amendments`** - Amendment audit trail
+- `id`, `case_name`, `step`, `change_type`, `diff`, `created_at`
+
+**`kyc_case_amendments`** - Amendment audit trail
+- `id`, `case_name`, `step`, `change_type`, `diff`, `created_at`
+
 ## Testing
 
 The project includes comprehensive tests:
@@ -247,26 +307,35 @@ The project includes comprehensive tests:
 
 All tests pass with `GOEXPERIMENT=greenteagc`.
 
+### Ownership Validation Tests
+
+- **Structural checks** - At least one owner or controller required
+- **Percentage validation** - Legal ownership must sum to 100% ± 0.5%
+- **Duplicate detection** - No duplicate owners, beneficial owners, or controllers
+- **Controller requirements** - Multiple owners require at least one controller
+
 ## Code Quality
 
 - ✅ **go vet**: Clean
 - ✅ **golangci-lint**: Clean
 - ✅ **gofmt**: All code formatted
 - ✅ **errcheck**: All errors handled
-- ✅ **Test Coverage**: Core parser covered
+- ✅ **Test Coverage**: Core parser and ownership validation covered
+- ✅ **Ownership Validation**: Structural and semantic checks
 
 ## Audit Trail
 
 Every case mutation produces:
-- New row in `kyc_case_versions`
+- New row in `kyc_case_versions` with complete DSL snapshot
+- New row in `kyc_case_amendments` with step and change type
 - Immutable SHA-256 hash fingerprint
-- Complete serialized DSL text
-- Automatic version numbering
+- Automatic version numbering per case
 
 You can prove:
 - **Determinism**: Identical DSL → identical hash
-- **Provenance**: Each version linked to time
-- **Replayability**: Rebuild state from any snapshot
+- **Provenance**: Each version linked to timestamp and step
+- **Replayability**: Rebuild state from any historical snapshot
+- **Compliance**: Complete audit trail for regulatory requirements
 
 ## Example Queries
 
@@ -304,6 +373,44 @@ This provides:
 
 See `REFACTORING_SUMMARY.md` for details.
 
+## Ownership & Control (Grammar v1.1)
+
+The system supports comprehensive ownership and control tracking:
+
+### Ownership Types
+
+- **Legal Ownership** - Registered shareholders (must sum to 100%)
+- **Beneficial Ownership** - Economic interest or voting rights
+- **Controllers** - Persons with significant control or influence
+
+### Validation Rules
+
+1. At least one owner or controller required
+2. Legal ownership percentages must sum to 100% ± 0.5%
+3. No duplicate entities allowed
+4. Multiple owners require at least one controller
+
+### Example
+
+```lisp
+(ownership-structure
+  (owner BLACKROCK-PLC 100)
+  (beneficial-owner LARRY-FINK 35)
+  (controller JANE-DOE "Senior Managing Official")
+  (controller JOHN-SMITH "Director, Risk Oversight"))
+```
+
+See `OWNERSHIP_CONTROL.md` for complete documentation.
+
+## Amendment System
+
+Cases evolve through defined lifecycle phases:
+
+1. **Case Creation** - Initial setup
+2. **Policy Discovery** - Auto-inject policies
+3. **Document Solicitation** - Add obligations
+4. **Ownership &
+
 ## Contributing
 
 1. Fork the repository
@@ -329,4 +436,9 @@ Built with:
 
 ---
 
-For more details, see `CLAUDE.md` and `REFACTORING_SUMMARY.md`.
+For more details, see:
+- `CLAUDE.md` - Project guidance
+- `REFACTORING_SUMMARY.md` - CLI refactoring details
+- `AMENDMENT_SYSTEM.md` - Amendment lifecycle
+- `OWNERSHIP_CONTROL.md` - Ownership & control system
+- `SESSION_SUMMARY.md` - Current system state

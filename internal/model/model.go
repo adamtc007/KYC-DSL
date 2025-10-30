@@ -18,14 +18,16 @@ type KycCase struct {
 	LastUpdated time.Time  `db:"last_updated"`
 
 	// DSL-derived fields
-	Nature      string
-	Purpose     string
-	CBU         ClientBusinessUnit
-	Policies    []KycPolicy
-	Obligations []KycObligation
-	Functions   []Function
-	Token       *KycToken
-	Ownership   []OwnershipNode
+	Nature               string
+	Purpose              string
+	CBU                  ClientBusinessUnit
+	Policies             []KycPolicy
+	Obligations          []KycObligation
+	Functions            []Function
+	Token                *KycToken
+	Ownership            []OwnershipNode
+	DataDictionary       []AttributeSource
+	DocumentRequirements []DocumentRequirement
 }
 
 type ClientBusinessUnit struct {
@@ -57,4 +59,24 @@ type OwnershipNode struct {
 	Controller       string  `db:"controller"`
 	Role             string  `db:"role"`
 	OwnershipPercent float64 `db:"ownership_percent"`
+}
+
+// AttributeSource represents an attribute and its data sources (primary, secondary, tertiary)
+type AttributeSource struct {
+	AttributeCode   string
+	PrimarySource   string
+	SecondarySource string
+	TertiarySource  string
+}
+
+// DocumentRequirement represents required documents for a jurisdiction
+type DocumentRequirement struct {
+	Jurisdiction string
+	Documents    []DocumentRef
+}
+
+// DocumentRef represents a document reference with code and name
+type DocumentRef struct {
+	Code string
+	Name string
 }

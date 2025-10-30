@@ -35,6 +35,18 @@ issues:
         - gosec
       text: "G304.*Potential file inclusion via variable"
 
+    # Allow high complexity in binder - handles many DSL node types
+    - path: internal/parser/binder.go
+      linters:
+        - gocyclo
+      text: "cyclomatic complexity.*of func `Bind`"
+
+    # Allow high complexity in serializer - handles many model types
+    - path: internal/parser/serializer.go
+      linters:
+        - gocyclo
+      text: "cyclomatic complexity.*of func `serializeCase`"
+
   exclude-use-default: false
 
 linters-settings:
