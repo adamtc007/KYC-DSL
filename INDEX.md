@@ -12,6 +12,7 @@
 1. **[README.md](README.md)** - Project overview and architecture
 2. **[QUICKSTART.md](QUICKSTART.md)** - Get up and running in 5 minutes
 3. **[CLAUDE.md](CLAUDE.md)** - Comprehensive guide for AI agents and developers
+4. **[CALL_TREES.md](CALL_TREES.md)** - Complete call tree traces for all workflows
 
 ---
 
@@ -117,6 +118,9 @@
 ### "I want to build/test Rust code"
 → **[RUST_BUILD_PLAYBOOK.md](RUST_BUILD_PLAYBOOK.md)**
 
+### "I want to understand call flows"
+→ **[CALL_TREES.md](CALL_TREES.md)**
+
 ### "I want to contribute"
 → **[TESTING_GUIDE.md](TESTING_GUIDE.md)** + **[CLAUDE.md](CLAUDE.md)**
 
@@ -124,8 +128,8 @@
 
 ## 📊 Documentation Statistics
 
-- **Total Documents**: 23 main + 3 rust
-- **Core Guides**: 8
+- **Total Documents**: 24 main + 3 rust
+- **Core Guides**: 9
 - **API Docs**: 3
 - **Rust Docs**: 6
 - **Feature Guides**: 9
@@ -136,6 +140,7 @@
 
 ### System Design
 - **[CLAUDE.md](CLAUDE.md)** - Complete architecture and CLI reference
+- **[CALL_TREES.md](CALL_TREES.md)** - Call tree traces for all workflows
 - **[RUST_MIGRATION_REPORT.md](RUST_MIGRATION_REPORT.md)** - Dual Go/Rust architecture
 
 ### Database
@@ -188,8 +193,9 @@
 
 ### **Intermediate (Week 1)**
 1. CLAUDE.md
-2. RAG_VECTOR_SEARCH.md
-3. GRPC_GUIDE.md
+2. CALL_TREES.md
+3. RAG_VECTOR_SEARCH.md
+4. GRPC_GUIDE.md
 
 ### **Advanced (Month 1)**
 1. REGULATORY_ONTOLOGY.md
@@ -206,10 +212,11 @@
 ## 📞 Getting Help
 
 1. **Check the relevant guide** from sections above
-2. **Run test scripts** in `scripts/`
-3. **View API documentation** for integration
-4. **Check CLAUDE.md** for comprehensive CLI reference
-5. **Run preflight checks**: `cd rust && ./preflight.sh`
+2. **Trace call flows**: See **[CALL_TREES.md](CALL_TREES.md)**
+3. **Run test scripts** in `scripts/`
+4. **View API documentation** for integration
+5. **Check CLAUDE.md** for comprehensive CLI reference
+6. **Run preflight checks**: `cd rust && ./preflight.sh`
 
 ---
 
