@@ -16,4 +16,34 @@ type KycCase struct {
 	Version     int        `db:"version"`
 	Status      CaseStatus `db:"status"`
 	LastUpdated time.Time  `db:"last_updated"`
+
+	// DSL-derived fields
+	Nature      string
+	Purpose     string
+	CBU         ClientBusinessUnit
+	Policies    []KycPolicy
+	Obligations []KycObligation
+	Functions   []Function
+	Token       *KycToken
+}
+
+type ClientBusinessUnit struct {
+	Name string
+}
+
+type KycPolicy struct {
+	Code string
+}
+
+type KycObligation struct {
+	PolicyCode string
+}
+
+type Function struct {
+	Action string
+	Status CaseStatus
+}
+
+type KycToken struct {
+	Status string
 }

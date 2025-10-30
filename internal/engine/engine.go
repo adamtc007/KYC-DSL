@@ -26,16 +26,19 @@ func NewExecutor(db *sqlx.DB) *Executor {
 	return &Executor{DB: db}
 }
 
-func (e *Executor) RunCase(caseName string) error {
-	debugLog("=== ENGINE BREAKPOINT 2: RunCase called with caseName='%s' ===", caseName)
+func (e *Executor) RunCase(caseName string, dslText string) error {
 	fmt.Println("🧩 Executing KYC Case:", caseName)
 
-	debugLog("=== ENGINE BREAKPOINT 3: About to insert case into database ===")
+	// Insert case metadata if new
 	if err := storage.InsertCase(e.DB, caseName); err != nil {
-		debugLog("Insert failed with error: %v", err)
 		return fmt.Errorf("insert failed: %w", err)
 	}
-	debugLog("=== ENGINE BREAKPOINT 4: Case inserted successfully ===")
-	fmt.Println("🔗 Case recorded in database.")
+
+	// Persist full DSL snapshot as versioned record
+	if err := storage.SaveCaseVersion(e.DB, caseName, dslText); err != nil {
+		return fmt.Errorf("save version failed: %w", err)
+	}
+
+	fmt.Println("💾 Case successfully persisted and versioned.")
 	return nil
 }

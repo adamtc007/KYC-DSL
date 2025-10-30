@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"os"
@@ -62,6 +63,15 @@ func ConnectPostgres() (*sqlx.DB, error) {
 		status TEXT DEFAULT 'pending',
 		last_updated TIMESTAMP DEFAULT NOW()
 	);
+
+	CREATE TABLE IF NOT EXISTS kyc_case_versions (
+		id SERIAL PRIMARY KEY,
+		case_name TEXT NOT NULL,
+		version INT NOT NULL,
+		dsl_snapshot TEXT,
+		hash TEXT,
+		created_at TIMESTAMP DEFAULT NOW()
+	);
 	`
 	db.MustExec(schema)
 	debugLog("Schema created/verified successfully")
@@ -82,5 +92,49 @@ func InsertCase(db *sqlx.DB, name string) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	debugLog("=== STORAGE BREAKPOINT 5: Insert successful, rows affected: %d ===", rowsAffected)
+	return nil
+}
+
+// InsertVersion stores a DSL snapshot with its hash for audit trail.
+func InsertVersion(db *sqlx.DB, caseName string, version int, dsl string) error {
+	hash := sha256Hex(dsl)
+	query := `INSERT INTO kyc_case_versions (case_name, version, dsl_snapshot, hash) VALUES ($1, $2, $3, $4)`
+	_, err := db.Exec(query, caseName, version, dsl, hash)
+	if err != nil {
+		debugLog("InsertVersion failed: %v", err)
+		return err
+	}
+	debugLog("Version inserted for case=%s version=%d hash=%s", caseName, version, hash)
+	return nil
+}
+
+func sha256Hex(input string) string {
+	sum := sha256.Sum256([]byte(input))
+	return fmt.Sprintf("%x", sum)
+}
+
+// GetNextVersion returns the next version number for a given case.
+func GetNextVersion(db *sqlx.DB, caseName string) (int, error) {
+	var current int
+	err := db.Get(&current, "SELECT COALESCE(MAX(version), 0) FROM kyc_case_versions WHERE case_name=$1", caseName)
+	if err != nil {
+		return 1, err
+	}
+	return current + 1, nil
+}
+
+// SaveCaseVersion handles auto-versioning and persistence of a serialized DSL snapshot.
+func SaveCaseVersion(db *sqlx.DB, caseName, dsl string) error {
+	nextVer, err := GetNextVersion(db, caseName)
+	if err != nil {
+		return fmt.Errorf("failed to get next version: %w", err)
+	}
+	hash := sha256Hex(dsl)
+	query := `INSERT INTO kyc_case_versions (case_name, version, dsl_snapshot, hash) VALUES ($1, $2, $3, $4)`
+	_, err = db.Exec(query, caseName, nextVer, dsl, hash)
+	if err != nil {
+		return fmt.Errorf("insert version failed: %w", err)
+	}
+	fmt.Printf("📜 Case %s saved version %d (hash=%s)\n", caseName, nextVer, hash[:12])
 	return nil
 }

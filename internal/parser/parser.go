@@ -101,18 +101,27 @@ func tokenize(r io.Reader) ([]string, error) {
 		if line == "" || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "#") {
 			continue
 		}
-		// basic splitting on parentheses and whitespace
 		var current strings.Builder
+		inQuote := false
 		for _, ch := range line {
 			switch {
+			case ch == '"':
+				inQuote = !inQuote
+				current.WriteRune(ch)
 			case ch == '(' || ch == ')':
-				if current.Len() > 0 {
-					tokens = append(tokens, current.String())
-					current.Reset()
+				if !inQuote {
+					if current.Len() > 0 {
+						tokens = append(tokens, current.String())
+						current.Reset()
+					}
+					tokens = append(tokens, string(ch))
+				} else {
+					current.WriteRune(ch)
 				}
-				tokens = append(tokens, string(ch))
 			case unicode.IsSpace(ch):
-				if current.Len() > 0 {
+				if inQuote {
+					current.WriteRune(ch)
+				} else if current.Len() > 0 {
 					tokens = append(tokens, current.String())
 					current.Reset()
 				}
