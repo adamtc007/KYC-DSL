@@ -1,7 +1,7 @@
 # Makefile for KYC-DSL
 # Builds with greenteagc garbage collector experiment
 
-.PHONY: build run test clean lint fmt deps
+.PHONY: build run test clean lint fmt deps verify
 
 # Build variables
 GOEXPERIMENT := greenteagc
@@ -72,3 +72,7 @@ info:
 	@echo "GOEXPERIMENT: $(GOEXPERIMENT)"
 	@echo "Build directory: $(BUILD_DIR)"
 	@echo "Binary name: $(BINARY)"
+
+# Run comprehensive verification checks
+verify:
+	@./verify.sh
