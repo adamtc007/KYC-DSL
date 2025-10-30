@@ -28,15 +28,15 @@ run-file: build
 	@if [ -z "$(FILE)" ]; then echo "Usage: make run-file FILE=<dsl-file>"; exit 1; fi
 	./$(BUILD_DIR)/$(BINARY) $(FILE)
 
-# Run all tests with greenteagc
+# Run all tests with greenteagc (exclude examples)
 test:
 	@echo "Running tests with GOEXPERIMENT=$(GOEXPERIMENT)..."
-	GOEXPERIMENT=$(GOEXPERIMENT) go test ./...
+	GOEXPERIMENT=$(GOEXPERIMENT) go test ./internal/... ./cmd/...
 
-# Run tests with verbose output
+# Run tests with verbose output (exclude examples)
 test-verbose:
 	@echo "Running tests with verbose output..."
-	GOEXPERIMENT=$(GOEXPERIMENT) go test -v ./...
+	GOEXPERIMENT=$(GOEXPERIMENT) go test -v ./internal/... ./cmd/...
 
 # Run parser tests specifically
 test-parser:

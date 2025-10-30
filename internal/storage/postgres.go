@@ -354,3 +354,106 @@ func GetValidationHistory(db *sqlx.DB, caseName string) ([]model.CaseValidation,
 	}
 	return validations, nil
 }
+
+// RecordLineageEvaluation persists a lineage evaluation result for audit trail.
+func RecordLineageEvaluation(db *sqlx.DB, caseName string, caseVersion int, result interface{}) error {
+	if db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	// Type assertion to get evaluation result
+	type EvalResult struct {
+		DerivedCode string
+		Value       interface{}
+		Success     bool
+		Error       string
+		Rule        string
+		Inputs      map[string]interface{}
+	}
+
+	r, ok := result.(EvalResult)
+	if !ok {
+		return fmt.Errorf("invalid evaluation result type")
+	}
+
+	// Determine value type
+	valueType := "string"
+	var valueStr string
+	switch v := r.Value.(type) {
+	case bool:
+		valueType = "boolean"
+		valueStr = fmt.Sprintf("%v", v)
+	case int, int64, float64:
+		valueType = "numeric"
+		valueStr = fmt.Sprintf("%v", v)
+	case string:
+		valueType = "string"
+		valueStr = v
+	default:
+		valueStr = fmt.Sprintf("%v", v)
+	}
+
+	// Convert inputs to JSON
+	var inputsJSON interface{}
+	if r.Inputs != nil {
+		inputsJSON = r.Inputs
+	}
+
+	query := `
+		INSERT INTO kyc_lineage_evaluations
+		(case_name, case_version, derived_code, value, value_type, success, error, inputs, rule)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
+	_, err := db.Exec(query,
+		caseName, caseVersion, r.DerivedCode, valueStr, valueType,
+		r.Success, r.Error, inputsJSON, r.Rule)
+
+	if err != nil {
+		debugLog("RecordLineageEvaluation failed: %v", err)
+		return fmt.Errorf("record lineage evaluation failed (case=%s, derived=%s): %w",
+			caseName, r.DerivedCode, err)
+	}
+
+	debugLog("Lineage evaluation recorded: case=%s, derived=%s, success=%v",
+		caseName, r.DerivedCode, r.Success)
+	return nil
+}
+
+// GetLineageEvaluations retrieves evaluation history for a case.
+func GetLineageEvaluations(db *sqlx.DB, caseName string) ([]map[string]interface{}, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database connection is nil")
+	}
+	if caseName == "" {
+		return nil, fmt.Errorf("case name is required")
+	}
+
+	var results []map[string]interface{}
+	query := `
+		SELECT id, case_name, case_version, derived_code, value, value_type,
+		       success, error, inputs, rule, evaluated_at
+		FROM kyc_lineage_evaluations
+		WHERE case_name = $1
+		ORDER BY evaluated_at DESC
+	`
+
+	rows, err := db.Queryx(query, caseName)
+	if err != nil {
+		return nil, fmt.Errorf("get lineage evaluations failed for case %s: %w", caseName, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			debugLog("Failed to close rows: %v", closeErr)
+		}
+	}()
+
+	for rows.Next() {
+		result := make(map[string]interface{})
+		if err := rows.MapScan(result); err != nil {
+			return nil, fmt.Errorf("scan lineage evaluation failed: %w", err)
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
