@@ -220,11 +220,18 @@ func getFunctionNames(c *model.KycCase) []string {
 // ShowUsage displays usage information.
 func ShowUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  kycctl grammar                      - Store grammar definition in database")
-	fmt.Println("  kycctl ontology                     - Display regulatory data ontology")
-	fmt.Println("  kycctl validate <case>              - Validate case and record audit trail")
-	fmt.Println("  kycctl <dsl-file>                   - Parse and process a DSL file")
-	fmt.Println("  kycctl amend <case> --step=<phase>  - Apply incremental amendment to case")
+	fmt.Println("  kycctl grammar                          - Store grammar definition in database")
+	fmt.Println("  kycctl ontology                         - Display regulatory data ontology")
+	fmt.Println("  kycctl validate <case>                  - Validate case and record audit trail")
+	fmt.Println("  kycctl <dsl-file>                       - Parse and process a DSL file")
+	fmt.Println("  kycctl amend <case> --step=<phase>      - Apply incremental amendment to case")
+	fmt.Println()
+	fmt.Println("RAG & Vector Search Commands:")
+	fmt.Println("  kycctl seed-metadata                    - Seed attribute metadata with embeddings")
+	fmt.Println("  kycctl search-metadata <query>          - Semantic search for attributes")
+	fmt.Println("  kycctl similar-attributes <code>        - Find similar attributes")
+	fmt.Println("  kycctl text-search <term>               - Text-based attribute search")
+	fmt.Println("  kycctl metadata-stats                   - Display metadata statistics")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  kycctl grammar")
@@ -232,6 +239,9 @@ func ShowUsage() {
 	fmt.Println("  kycctl validate BLACKROCK-GLOBAL-EQUITY-FUND")
 	fmt.Println("  kycctl sample_case.dsl")
 	fmt.Println("  kycctl amend AVIVA-EU-EQUITY-FUND --step=policy-discovery")
+	fmt.Println("  kycctl seed-metadata")
+	fmt.Println("  kycctl search-metadata \"tax residency\"")
+	fmt.Println("  kycctl similar-attributes UBO_NAME")
 	fmt.Println()
 	fmt.Println("Amendment steps:")
 	fmt.Println("  policy-discovery        - Add policy discovery function and policies")
@@ -294,6 +304,57 @@ func Run(args []string) {
 		}
 		step := strings.TrimPrefix(args[2], "--step=")
 		if err := RunAmendCommand(caseName, step); err != nil {
+			log.Fatal(err)
+		}
+
+	case "seed-metadata":
+		if err := RunSeedMetadataCommand(); err != nil {
+			log.Fatal(err)
+		}
+
+	case "search-metadata":
+		if len(args) < 2 {
+			fmt.Println("Error: search-metadata command requires a query")
+			ShowUsage()
+			log.Fatal("missing search query")
+		}
+		query := args[1]
+		limit := 10
+		if len(args) >= 3 && strings.HasPrefix(args[2], "--limit=") {
+			fmt.Sscanf(strings.TrimPrefix(args[2], "--limit="), "%d", &limit)
+		}
+		if err := RunSearchMetadataCommand(query, limit); err != nil {
+			log.Fatal(err)
+		}
+
+	case "similar-attributes":
+		if len(args) < 2 {
+			fmt.Println("Error: similar-attributes command requires an attribute code")
+			ShowUsage()
+			log.Fatal("missing attribute code")
+		}
+		attributeCode := args[1]
+		limit := 10
+		if len(args) >= 3 && strings.HasPrefix(args[2], "--limit=") {
+			fmt.Sscanf(strings.TrimPrefix(args[2], "--limit="), "%d", &limit)
+		}
+		if err := RunSimilarAttributesCommand(attributeCode, limit); err != nil {
+			log.Fatal(err)
+		}
+
+	case "text-search":
+		if len(args) < 2 {
+			fmt.Println("Error: text-search command requires a search term")
+			ShowUsage()
+			log.Fatal("missing search term")
+		}
+		searchTerm := args[1]
+		if err := RunTextSearchCommand(searchTerm); err != nil {
+			log.Fatal(err)
+		}
+
+	case "metadata-stats":
+		if err := RunMetadataStatsCommand(); err != nil {
 			log.Fatal(err)
 		}
 

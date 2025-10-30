@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Customer (KYC) compliance cases. The system parses DSL files containing KYC case definitions and persists them to a PostgreSQL database with full version control and amendment tracking.
 
-**Version**: 1.2  
-**Key Features**: DSL parsing, regulatory ontology, ownership tracking, incremental amendments, version control
+**Version**: 1.4  
+**Key Features**: DSL parsing, regulatory ontology, ownership tracking, incremental amendments, version control, RAG & vector search
 
 ## Common Development Commands
 
@@ -22,6 +22,7 @@ KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Cus
 - `make test` - Run all tests with greenteagc experiment
 - `make test-verbose` - Run all tests with verbose output
 - `make test-parser` - Run parser tests specifically
+- `./scripts/test_semantic_search.sh` - Test RAG & vector search functionality
 
 ### Dependencies and Maintenance
 - `make deps` - Download and tidy dependencies
@@ -40,10 +41,12 @@ KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Cus
 - `parser/` - DSL parsing, binding, serialization, validation
 - `engine/` - Execution engine that processes parsed cases
 - `storage/` - PostgreSQL database layer using sqlx
-- `model/` - Data models (KycCase, AttributeSource, DocumentRequirement, etc.)
-- `ontology/` - Regulatory data ontology (regulations, documents, attributes)
+- `model/` - Data models (KycCase, AttributeSource, DocumentRequirement, AttributeMetadata, etc.)
+- `ontology/` - Regulatory data ontology (regulations, documents, attributes) + metadata repository
 - `amend/` - Amendment system with predefined mutations
 - `token/` - KYC token management
+- `rag/` - RAG embeddings and vector search (OpenAI integration)
+- `lineage/` - Attribute lineage and derivation engine
 
 ### Data Flow
 
@@ -227,6 +230,108 @@ cli.Run(["amend", "CASE-NAME", "--step=document-discovery"])
 
 ---
 
+### 5. Seed Metadata with Embeddings
+```bash
+./kycctl seed-metadata
+```
+
+**Call Tree:**
+```
+cli.Run(["seed-metadata"])
+└── cli.RunSeedMetadataCommand()
+    ├── storage.ConnectPostgres()
+    ├── ontology.NewMetadataRepo()
+    ├── rag.NewEmbedder()
+    └── For each sample attribute:
+        ├── embedder.GenerateEmbedding()    # OpenAI API call
+        └── repo.UpsertMetadata()           # Store with embedding
+```
+
+**Purpose**: Generate vector embeddings for all attributes using OpenAI's text-embedding-3-large model.
+
+---
+
+### 6. Semantic Search
+```bash
+./kycctl search-metadata "tax reporting requirements"
+./kycctl search-metadata "beneficial ownership" --limit=5
+```
+
+**Call Tree:**
+```
+cli.Run(["search-metadata", "query"])
+└── cli.RunSearchMetadataCommand("query", limit)
+    ├── storage.ConnectPostgres()
+    ├── ontology.NewMetadataRepo()
+    ├── rag.NewEmbedder()
+    ├── embedder.GenerateEmbeddingFromText()  # Query embedding
+    └── repo.SearchByVector()                 # Vector similarity search
+```
+
+**Purpose**: Perform semantic search on attribute metadata using vector embeddings.
+
+---
+
+### 7. Find Similar Attributes
+```bash
+./kycctl similar-attributes UBO_NAME
+./kycctl similar-attributes SANCTIONS_SCREENING_STATUS --limit=5
+```
+
+**Call Tree:**
+```
+cli.Run(["similar-attributes", "ATTR_CODE"])
+└── cli.RunSimilarAttributesCommand("ATTR_CODE", limit)
+    ├── storage.ConnectPostgres()
+    ├── ontology.NewMetadataRepo()
+    ├── repo.GetMetadata()                    # Get source attribute
+    └── repo.FindSimilarAttributes()          # Vector similarity
+```
+
+**Purpose**: Find attributes semantically related to a given attribute code.
+
+---
+
+### 8. Text Search
+```bash
+./kycctl text-search "ownership"
+./kycctl text-search "PEP"
+```
+
+**Call Tree:**
+```
+cli.Run(["text-search", "term"])
+└── cli.RunTextSearchCommand("term")
+    ├── storage.ConnectPostgres()
+    ├── ontology.NewMetadataRepo()
+    └── repo.SearchByText()                   # Traditional text search
+```
+
+**Purpose**: Search attributes by keyword, synonym, or business context (no embedding required).
+
+---
+
+### 9. Metadata Statistics
+```bash
+./kycctl metadata-stats
+```
+
+**Call Tree:**
+```
+cli.Run(["metadata-stats"])
+└── cli.RunMetadataStatsCommand()
+    ├── storage.ConnectPostgres()
+    ├── ontology.NewMetadataRepo()
+    └── repo.GetMetadataStats()
+        ├── repo.CountMetadata()
+        ├── repo.CountEmbeddings()
+        └── SQL: Risk distribution query
+```
+
+**Purpose**: Display repository health, embedding coverage, and risk distribution.
+
+---
+
 ## Test Invocations
 
 ### Parser Tests
@@ -307,6 +412,10 @@ golangci-lint run
 - `REGULATORY_ONTOLOGY.md` - Comprehensive ontology documentation
 - `AMENDMENT_SYSTEM.md` - Amendment system details
 - `OWNERSHIP_CONTROL.md` - Ownership structure documentation
+- `RAG_VECTOR_SEARCH.md` - Complete RAG & vector search documentation
+- `RAG_QUICKSTART.md` - Quick start guide for semantic search
+- `LINEAGE_EVALUATOR.md` - Attribute lineage and derivation
+- `VALIDATION_AUDIT.md` - Validation and audit trail system
 
 ### Migrations & Seeds
 - `internal/storage/migrations/001_regulatory_ontology.sql` - Ontology schema
@@ -324,6 +433,8 @@ golangci-lint run
 - `github.com/alecthomas/participle/v2` - Grammar-based parser generation
 - `github.com/jmoiron/sqlx` - PostgreSQL extensions for database/sql
 - `github.com/lib/pq` - PostgreSQL driver
+- `github.com/sashabaranov/go-openai` - OpenAI API client for embeddings
+- `github.com/expr-lang/expr` - Expression language for lineage rules
 
 ---
 
@@ -348,8 +459,86 @@ See `REGULATORY_ONTOLOGY.md` for complete details.
 - **v1.0**: Initial DSL with parsing, validation, storage
 - **v1.1**: Added ownership structures, control hierarchy, amendments
 - **v1.2**: Added regulatory data ontology, data dictionary, document requirements
+- **v1.3**: Added lineage engine, attribute derivation, validation audit trail
+- **v1.4**: Added RAG & vector search with OpenAI embeddings
+
+---
+
+## RAG & Vector Search (v1.4)
+
+The system now includes semantic search capabilities over the regulatory ontology:
+
+### Key Features
+- **Semantic Search**: Find attributes by meaning using OpenAI embeddings
+- **Vector Similarity**: Discover related attributes automatically
+- **Agent Integration**: Power AI agents with regulatory context
+- **Synonym Resolution**: Map natural language to formal codes
+- **Embedding Storage**: 1536-dimensional vectors in PostgreSQL with pgvector
+
+### Quick Setup
+```bash
+# Install pgvector extension
+brew install pgvector  # macOS
+sudo apt install postgresql-15-pgvector  # Ubuntu
+
+# Enable in database
+psql -d kyc_dsl -c "CREATE EXTENSION vector;"
+
+# Set OpenAI API key
+export OPENAI_API_KEY="sk-..."
+
+# Seed embeddings
+./kycctl seed-metadata
+
+# Try semantic search
+./kycctl search-metadata "tax compliance requirements"
+./kycctl similar-attributes UBO_NAME
+```
+
+### Architecture
+```
+Query → OpenAI Embedding → Vector Search (pgvector) → Ranked Results
+```
+
+### Use Cases
+1. **AI Agent Context**: "Find attributes for EU fund KYC" → AMLD5 attributes
+2. **Explainability**: "Why need UBO?" → AMLD5 Article 3, FATF Rec 24
+3. **Synonym Resolution**: "Company Name" → REGISTERED_NAME
+4. **Risk Prioritization**: Find CRITICAL attributes for enhanced due diligence
+
+### Database Schema
+```sql
+CREATE TABLE kyc_attribute_metadata (
+    attribute_code TEXT PRIMARY KEY,
+    synonyms TEXT[],
+    business_context TEXT,
+    regulatory_citations TEXT[],
+    embedding vector(1536),  -- OpenAI text-embedding-3-large
+    ...
+);
+
+CREATE INDEX ON kyc_attribute_metadata 
+    USING ivfflat (embedding vector_cosine_ops);
+```
+
+### Example Results
+```
+Query: "tax reporting requirements"
+
+Results:
+1. TAX_RESIDENCY_COUNTRY (similarity: 0.87)
+   - Citations: FATCA §1471(b)(1)(D), CRS
+   - Risk: HIGH
+   
+2. FATCA_STATUS (similarity: 0.85)
+   - Citations: FATCA §1471-1474
+   - Risk: HIGH
+```
+
+See [RAG_VECTOR_SEARCH.md](RAG_VECTOR_SEARCH.md) for complete documentation.
 
 ---
 
 **Last Updated**: 2024  
+**Version**: 1.4  
 **Maintainer**: See repository metadata

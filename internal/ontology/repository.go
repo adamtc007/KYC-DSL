@@ -243,3 +243,116 @@ func (r *Repository) ValidateDerivationSources(sourceAttrCodes []string) error {
 	}
 	return nil
 }
+
+// GetAttributeMetadata retrieves metadata for an attribute
+func (r *Repository) GetAttributeMetadata(attrCode string) (*AttributeMetadata, error) {
+	var metadata AttributeMetadata
+	err := r.db.Get(&metadata, `
+		SELECT * FROM kyc_attribute_metadata WHERE attribute_code=$1
+	`, attrCode)
+	if err != nil {
+		return nil, err
+	}
+	return &metadata, nil
+}
+
+// ListAttributeClusters returns all attribute clusters
+func (r *Repository) ListAttributeClusters() ([]AttributeCluster, error) {
+	var clusters []AttributeCluster
+	err := r.db.Select(&clusters, `
+		SELECT * FROM kyc_attribute_clusters ORDER BY priority, cluster_name
+	`)
+	return clusters, err
+}
+
+// GetAttributeCluster retrieves a specific cluster by code
+func (r *Repository) GetAttributeCluster(clusterCode string) (*AttributeCluster, error) {
+	var cluster AttributeCluster
+	err := r.db.Get(&cluster, `
+		SELECT * FROM kyc_attribute_clusters WHERE cluster_code=$1
+	`, clusterCode)
+	if err != nil {
+		return nil, err
+	}
+	return &cluster, nil
+}
+
+// GetClusterAttributes returns all attributes in a cluster
+func (r *Repository) GetClusterAttributes(clusterCode string) ([]Attribute, error) {
+	var attrs []Attribute
+	err := r.db.Select(&attrs, `
+		SELECT a.* FROM kyc_attributes a
+		WHERE a.code = ANY(
+			SELECT unnest(attribute_codes)
+			FROM kyc_attribute_clusters
+			WHERE cluster_code=$1
+		)
+		ORDER BY a.code
+	`, clusterCode)
+	return attrs, err
+}
+
+// GetAttributeProfile returns complete profile with metadata
+func (r *Repository) GetAttributeProfile(attrCode string) (*AttributeProfile, error) {
+	var profile AttributeProfile
+	err := r.db.Get(&profile, `
+		SELECT
+			a.code,
+			a.name,
+			a.domain,
+			a.description,
+			a.risk_category,
+			a.is_personal_data,
+			a.attribute_class,
+			m.synonyms,
+			m.data_type,
+			m.domain_values,
+			m.risk_level,
+			m.example_values,
+			m.regulatory_citations,
+			m.data_sensitivity,
+			m.retention_period_days
+		FROM kyc_attributes a
+		LEFT JOIN kyc_attribute_metadata m ON m.attribute_code = a.code
+		WHERE a.code=$1
+	`, attrCode)
+	if err != nil {
+		return nil, err
+	}
+	return &profile, nil
+}
+
+// FindAttributeBySynonym searches for attributes by synonym
+func (r *Repository) FindAttributeBySynonym(synonym string) ([]Attribute, error) {
+	var attrs []Attribute
+	err := r.db.Select(&attrs, `
+		SELECT a.* FROM kyc_attributes a
+		JOIN kyc_attribute_metadata m ON m.attribute_code = a.code
+		WHERE $1 = ANY(m.synonyms)
+		ORDER BY a.code
+	`, synonym)
+	return attrs, err
+}
+
+// GetAttributeRelationships returns relationships for an attribute
+func (r *Repository) GetAttributeRelationships(attrCode string) ([]AttributeRelationship, error) {
+	var rels []AttributeRelationship
+	err := r.db.Select(&rels, `
+		SELECT * FROM kyc_attribute_relationships
+		WHERE source_attribute_code=$1 OR target_attribute_code=$1
+		ORDER BY strength DESC
+	`, attrCode)
+	return rels, err
+}
+
+// FindRelatedAttributes finds semantically related attributes
+func (r *Repository) FindRelatedAttributes(attrCode string, maxDepth int) ([]Attribute, error) {
+	var attrs []Attribute
+	err := r.db.Select(&attrs, `
+		SELECT DISTINCT a.*
+		FROM find_related_attributes($1, $2) f
+		JOIN kyc_attributes a ON a.code = f.related_code
+		ORDER BY f.depth, a.code
+	`, attrCode, maxDepth)
+	return attrs, err
+}

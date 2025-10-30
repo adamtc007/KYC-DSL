@@ -18,6 +18,9 @@ KYC-DSL is a Go-based system that parses S-expression formatted DSL files contai
 - 🏢 **Ownership & Control** - Legal owners, beneficial owners, controllers (v1.1)
 - ✅ **Advanced Validation** - Ownership percentages, duplicates, structural checks
 - 🔄 **Amendment System** - Incremental case evolution through lifecycle phases
+- 🧠 **Regulatory Ontology** - 8+ regulations, 30+ documents, 30+ attributes (v1.2)
+- 🔬 **Lineage Engine** - Rule-based attribute derivation with audit trails (v1.3)
+- 🤖 **RAG & Vector Search** - Semantic search with OpenAI embeddings (v1.4)
 - 🧪 **Comprehensive Testing** - Unit tests for all core components
 - ⚡ **Green Tea GC** - Built with `GOEXPERIMENT=greenteagc` for enhanced performance
 
@@ -26,7 +29,8 @@ KYC-DSL is a Go-based system that parses S-expression formatted DSL files contai
 ### Prerequisites
 
 - Go 1.25+ (with greenteagc support)
-- PostgreSQL 12+
+- PostgreSQL 12+ with pgvector extension
+- OpenAI API Key (for embeddings)
 - golangci-lint (optional, for linting)
 
 ### Installation
