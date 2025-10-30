@@ -1,0 +1,25 @@
+{
+  "lsp": {
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "validate": false,
+          "schemas": {
+            "https://json.schemastore.org/golangci-lint.json": []
+          }
+        }
+      }
+    }
+  },
+  "languages": {
+    "YAML": {
+      "file_types": {
+        ".golangci.yml": {
+          "diagnostics": {
+            "enabled": false
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +52,40 @@ func Bind(dsl *DSL) ([]*model.KycCase, error) {
 				caseObj.Token = &model.KycToken{
 					Status: trimQuotes(node.Args[0].Head),
 				}
+
+			case "ownership-structure":
+				for _, n := range node.Args {
+					switch n.Head {
+					case "entity":
+						if len(n.Args) > 0 {
+							caseObj.Ownership = append(caseObj.Ownership, model.OwnershipNode{
+								Entity: n.Args[0].Head,
+							})
+						}
+					case "owner":
+						if len(n.Args) >= 2 {
+							caseObj.Ownership = append(caseObj.Ownership, model.OwnershipNode{
+								Owner:            n.Args[0].Head,
+								OwnershipPercent: parsePercent(n.Args[1].Head),
+							})
+						}
+					case "beneficial-owner":
+						if len(n.Args) >= 2 {
+							caseObj.Ownership = append(caseObj.Ownership, model.OwnershipNode{
+								BeneficialOwner:  n.Args[0].Head,
+								OwnershipPercent: parsePercent(n.Args[1].Head),
+							})
+						}
+					case "controller":
+						if len(n.Args) >= 2 {
+							caseObj.Ownership = append(caseObj.Ownership, model.OwnershipNode{
+								Controller: n.Args[0].Head,
+								Role:       trimQuotes(n.Args[1].Head),
+							})
+						}
+					}
+				}
+
 			default:
 				// Unknown node types ignored
 			}
@@ -86,4 +121,10 @@ func parseCBU(node *Expr) model.ClientBusinessUnit {
 
 func trimQuotes(s string) string {
 	return strings.Trim(s, "\"")
+}
+
+func parsePercent(s string) float64 {
+	s = strings.TrimSuffix(s, "%")
+	val, _ := strconv.ParseFloat(s, 64)
+	return val
 }

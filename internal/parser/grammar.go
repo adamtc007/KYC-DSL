@@ -1,9 +1,10 @@
 package parser
 
 // CurrentGrammarEBNF returns the canonical EBNF that aligns with the parser.
+// Version 1.1 adds Ownership and Control constructs.
 func CurrentGrammarEBNF() string {
 	return `
-(* KYC-DSL Grammar v1.0 *)
+(* KYC-DSL Grammar v1.1 *)
 
 DSL              = { KycCase } ;
 
@@ -16,7 +17,8 @@ Section          = NaturePurpose
                  | Function
                  | Policy
                  | Obligation
-                 | KycToken ;
+                 | KycToken
+                 | OwnershipStructure ;
 
 NaturePurpose    = "(" "nature-purpose"
                       Nature
@@ -33,7 +35,20 @@ Policy           = "(" "policy" Identifier ")" ;
 Obligation       = "(" "obligation" Identifier ")" ;
 KycToken         = "(" "kyc-token" QuotedString ")" ;
 
+(* Ownership & Control Section *)
+
+OwnershipStructure = "(" "ownership-structure"
+                        { OwnershipNode }
+                     ")" ;
+
+OwnershipNode      = Owner | BeneficialOwner | Controller ;
+
+Owner              = "(" "owner" Identifier Number "%" ")" ;
+BeneficialOwner    = "(" "beneficial-owner" Identifier Number "%" ")" ;
+Controller         = "(" "controller" Identifier QuotedString ")" ;
+
 Identifier       = { Letter | Digit | "-" | "_" } ;
 QuotedString     = '"' { Character | Space | Punctuation } '"' ;
+Number           = Digit { Digit } ;
 `
 }

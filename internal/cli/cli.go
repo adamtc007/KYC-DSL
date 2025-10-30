@@ -25,7 +25,7 @@ func RunGrammarCommand() error {
 	}()
 
 	ebnf := parser.CurrentGrammarEBNF()
-	err = storage.InsertGrammar(db, "KYC-DSL", "1.0", ebnf)
+	err = storage.InsertGrammar(db, "KYC-DSL", "1.1", ebnf)
 	if err != nil {
 		return fmt.Errorf("insert grammar failed: %w", err)
 	}

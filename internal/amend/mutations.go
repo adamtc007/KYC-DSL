@@ -44,48 +44,26 @@ func AddOwnershipStructure(c *model.KycCase) {
 		Status: model.Pending,
 	})
 
-	// Initialize ownership structure if not present
-	if c.Ownership == nil {
-		c.Ownership = &model.OwnershipStructure{
-			Entity: c.Name,
-		}
-	}
-
-	// Add legal owners
-	c.Ownership.LegalOwners = append(c.Ownership.LegalOwners,
-		model.Owner{
-			Name:       "BLACKROCK-PLC",
-			Percentage: 100.0,
+	// Add ownership nodes
+	c.Ownership = append(c.Ownership,
+		model.OwnershipNode{
+			Entity: "BLACKROCK-GLOBAL-FUNDS",
 		},
-	)
-
-	// Add beneficial owners
-	c.Ownership.BeneficialOwners = append(c.Ownership.BeneficialOwners,
-		model.BeneficialOwner{
-			Name:       "LARRY-FINK",
-			Percentage: 35.0,
-			Interest:   "voting rights",
+		model.OwnershipNode{
+			Owner:            "BLACKROCK-PLC",
+			OwnershipPercent: 100,
 		},
-	)
-
-	// Add controllers
-	c.Ownership.Controllers = append(c.Ownership.Controllers,
-		model.Controller{
-			Name: "JANE-DOE",
-			Role: "Senior Managing Official",
+		model.OwnershipNode{
+			BeneficialOwner:  "LARRY-FINK",
+			OwnershipPercent: 35,
 		},
-		model.Controller{
-			Name: "JOHN-SMITH",
-			Role: "Director",
+		model.OwnershipNode{
+			Controller: "JANE-DOE",
+			Role:       "Senior Managing Official",
 		},
-	)
-
-	// Add operational roles
-	c.Ownership.OperationalRoles = append(c.Ownership.OperationalRoles,
-		model.OperationalRole{
-			Name:     "MARY-JONES",
-			Title:    "Chief Compliance Officer",
-			Function: "compliance oversight",
+		model.OwnershipNode{
+			Controller: "JOHN-SMITH",
+			Role:       "Director",
 		},
 	)
 }

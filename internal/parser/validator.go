@@ -75,6 +75,22 @@ func validateCaseSemantics(db *sqlx.DB, c *model.KycCase) error {
 		return fmt.Errorf("invalid token state '%s'", c.Token.Status)
 	}
 
+	// ------------------ Ownership & Control checks ------------------
+	// Only validate ownership if BUILD-OWNERSHIP-TREE function is present
+	hasOwnershipFunction := false
+	for _, f := range c.Functions {
+		if f.Action == "BUILD-OWNERSHIP-TREE" || f.Action == "VERIFY-OWNERSHIP" {
+			hasOwnershipFunction = true
+			break
+		}
+	}
+
+	if hasOwnershipFunction {
+		if err := validateOwnershipAndControl(c); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -86,4 +102,65 @@ func contains(list []string, val string) bool {
 		}
 	}
 	return false
+}
+
+// validateOwnershipAndControl performs structural and numeric checks on ownership and control data.
+func validateOwnershipAndControl(c *model.KycCase) error {
+	if len(c.Ownership) == 0 {
+		return fmt.Errorf("no ownership-structure defined")
+	}
+
+	var legalTotal, beneficialTotal float64
+	var ownerCount, beneficialCount, controllerCount int
+	seenOwners := make(map[string]bool)
+	seenBeneficial := make(map[string]bool)
+	seenControllers := make(map[string]bool)
+
+	for _, o := range c.Ownership {
+		if o.Owner != "" {
+			ownerCount++
+			if seenOwners[o.Owner] {
+				return fmt.Errorf("duplicate owner entry for '%s'", o.Owner)
+			}
+			seenOwners[o.Owner] = true
+			legalTotal += o.OwnershipPercent
+		}
+		if o.BeneficialOwner != "" {
+			beneficialCount++
+			if seenBeneficial[o.BeneficialOwner] {
+				return fmt.Errorf("duplicate beneficial-owner entry for '%s'", o.BeneficialOwner)
+			}
+			seenBeneficial[o.BeneficialOwner] = true
+			beneficialTotal += o.OwnershipPercent
+		}
+		if o.Controller != "" {
+			controllerCount++
+			if seenControllers[o.Controller] {
+				return fmt.Errorf("duplicate controller entry for '%s'", o.Controller)
+			}
+			seenControllers[o.Controller] = true
+		}
+	}
+
+	// Require at least one owner or controller
+	if ownerCount == 0 && controllerCount == 0 {
+		return fmt.Errorf("ownership-structure must include at least one owner or controller")
+	}
+
+	// Check legal ownership percentage (within tolerance)
+	if ownerCount > 0 {
+		if legalTotal < 99.5 || legalTotal > 100.5 {
+			return fmt.Errorf("legal ownership percentages must sum to 100%% ± 0.5 (got %.2f%%)", legalTotal)
+		}
+	}
+
+	// Beneficial ownership can be any amount (typically less than or equal to legal)
+	// No strict validation on beneficial ownership totals
+
+	// Require controller if not 100% owned by one entity
+	if controllerCount == 0 && ownerCount > 1 {
+		return fmt.Errorf("at least one controller must be specified when multiple owners exist")
+	}
+
+	return nil
 }

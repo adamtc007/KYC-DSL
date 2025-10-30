@@ -1,3 +1,7 @@
+# golangci-lint configuration
+# Note: Some editors (like Zed) may show YAML validation errors, but this file
+# is valid for golangci-lint. Run `golangci-lint run` to verify.
+
 run:
   timeout: 5m
 

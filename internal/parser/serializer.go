@@ -54,6 +54,24 @@ func serializeCase(c *model.KycCase) string {
 		sb.WriteString(fmt.Sprintf("  (function %s)\n", f.Action))
 	}
 
+	// Ownership Structure
+	if len(c.Ownership) > 0 {
+		sb.WriteString("  (ownership-structure\n")
+		for _, o := range c.Ownership {
+			switch {
+			case o.Entity != "":
+				sb.WriteString(fmt.Sprintf("    (entity %s)\n", o.Entity))
+			case o.Owner != "":
+				sb.WriteString(fmt.Sprintf("    (owner %s %.0f%%)\n", o.Owner, o.OwnershipPercent))
+			case o.BeneficialOwner != "":
+				sb.WriteString(fmt.Sprintf("    (beneficial-owner %s %.0f%%)\n", o.BeneficialOwner, o.OwnershipPercent))
+			case o.Controller != "":
+				sb.WriteString(fmt.Sprintf("    (controller %s \"%s\")\n", o.Controller, o.Role))
+			}
+		}
+		sb.WriteString("  )\n")
+	}
+
 	// Token
 	if c.Token != nil {
 		sb.WriteString(fmt.Sprintf("  (kyc-token \"%s\")\n", c.Token.Status))
