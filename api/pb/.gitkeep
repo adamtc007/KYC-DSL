@@ -1,0 +1,9 @@
+# This directory contains generated Protocol Buffer code
+# Run `make proto` to generate the files
+
+# Files generated here:
+# - *.pb.go - Protocol Buffer message definitions
+# - *_grpc.pb.go - gRPC service stubs
+
+# These files are auto-generated and should not be edited manually
+# Add to .gitignore if you prefer to generate on build

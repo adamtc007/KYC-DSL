@@ -680,3 +680,182 @@ func (h *RagHandler) HandleGetRegulations(w http.ResponseWriter, r *http.Request
 		"regulations": results,
 	})
 }
+
+// HandleFeedback handles POST /rag/feedback - submit feedback on search results
+func (h *RagHandler) HandleFeedback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req model.FeedbackSubmitRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.sendError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
+		return
+	}
+
+	// Validate required fields
+	if req.QueryText == "" {
+		h.sendError(w, http.StatusBadRequest, "query_text is required")
+		return
+	}
+
+	// Validate at least one entity is provided
+	if req.AttributeCode == nil && req.DocumentCode == nil && req.RegulationCode == nil {
+		h.sendError(w, http.StatusBadRequest, "At least one of attribute_code, document_code, or regulation_code must be provided")
+		return
+	}
+
+	// Set defaults
+	if req.Feedback == "" {
+		req.Feedback = model.FeedbackSentimentPositive
+	}
+	if req.AgentType == "" {
+		req.AgentType = model.AgentTypeHuman
+	}
+	if req.Confidence == 0 {
+		req.Confidence = 1.0
+	}
+
+	// Validate confidence range
+	if req.Confidence < 0 || req.Confidence > 1 {
+		h.sendError(w, http.StatusBadRequest, "confidence must be between 0 and 1")
+		return
+	}
+
+	// Create feedback entry
+	feedback := model.Feedback{
+		QueryText:      req.QueryText,
+		AttributeCode:  req.AttributeCode,
+		DocumentCode:   req.DocumentCode,
+		RegulationCode: req.RegulationCode,
+		Feedback:       req.Feedback,
+		Confidence:     req.Confidence,
+		AgentName:      req.AgentName,
+		AgentType:      req.AgentType,
+	}
+
+	// Insert feedback
+	repo := ontology.NewFeedbackRepo(h.DB)
+	id, err := repo.InsertFeedback(feedback)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "Failed to save feedback: "+err.Error())
+		return
+	}
+
+	// Return response
+	response := model.FeedbackResponse{
+		Status:    "ok",
+		ID:        id,
+		Feedback:  req.Feedback,
+		AgentName: req.AgentName,
+		CreatedAt: feedback.CreatedAt,
+	}
+
+	h.sendJSON(w, http.StatusOK, response)
+}
+
+// HandleRecentFeedback handles GET /rag/feedback/recent - get recent feedback entries
+func (h *RagHandler) HandleRecentFeedback(w http.ResponseWriter, r *http.Request) {
+	// Parse limit parameter
+	limit := 50
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	// Get recent feedback
+	repo := ontology.NewFeedbackRepo(h.DB)
+	feedbacks, err := repo.GetRecentFeedback(limit)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "Failed to get recent feedback: "+err.Error())
+		return
+	}
+
+	response := model.RecentFeedbackResponse{
+		Count:     len(feedbacks),
+		Feedbacks: feedbacks,
+	}
+
+	h.sendJSON(w, http.StatusOK, response)
+}
+
+// HandleFeedbackAnalytics handles GET /rag/feedback/analytics - get feedback analytics
+func (h *RagHandler) HandleFeedbackAnalytics(w http.ResponseWriter, r *http.Request) {
+	// Parse topN parameter
+	topN := 10
+	if topNStr := r.URL.Query().Get("top"); topNStr != "" {
+		if n, err := strconv.Atoi(topNStr); err == nil && n > 0 {
+			topN = n
+		}
+	}
+
+	// Get analytics
+	repo := ontology.NewFeedbackRepo(h.DB)
+	analytics, err := repo.GetFeedbackAnalytics(topN)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "Failed to get feedback analytics: "+err.Error())
+		return
+	}
+
+	h.sendJSON(w, http.StatusOK, analytics)
+}
+
+// HandleFeedbackByAttribute handles GET /rag/feedback/attribute/{code} - get feedback for a specific attribute
+func (h *RagHandler) HandleFeedbackByAttribute(w http.ResponseWriter, r *http.Request) {
+	// Extract attribute code from path
+	path := strings.TrimPrefix(r.URL.Path, "/rag/feedback/attribute/")
+	attributeCode := strings.TrimSpace(path)
+
+	if attributeCode == "" {
+		h.sendError(w, http.StatusBadRequest, "attribute_code is required")
+		return
+	}
+
+	// Get feedback for attribute
+	repo := ontology.NewFeedbackRepo(h.DB)
+	feedbacks, err := repo.GetFeedbackByAttribute(attributeCode)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "Failed to get feedback for attribute: "+err.Error())
+		return
+	}
+
+	response := model.RecentFeedbackResponse{
+		Count:     len(feedbacks),
+		Feedbacks: feedbacks,
+	}
+
+	h.sendJSON(w, http.StatusOK, response)
+}
+
+// HandleFeedbackSummary handles GET /rag/feedback/summary - get feedback summary
+func (h *RagHandler) HandleFeedbackSummary(w http.ResponseWriter, r *http.Request) {
+	repo := ontology.NewFeedbackRepo(h.DB)
+
+	// Get overall summary
+	summary, err := repo.GetFeedbackSummary()
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "Failed to get feedback summary: "+err.Error())
+		return
+	}
+
+	// Get attribute summary
+	limit := 20
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	attrSummary, err := repo.GetAttributeFeedbackSummary(limit)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError, "Failed to get attribute feedback summary: "+err.Error())
+		return
+	}
+
+	h.sendJSON(w, http.StatusOK, map[string]interface{}{
+		"overall_summary":   summary,
+		"attribute_summary": attrSummary,
+	})
+}

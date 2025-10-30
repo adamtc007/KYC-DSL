@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Customer (KYC) compliance cases. The system parses DSL files containing KYC case definitions and persists them to a PostgreSQL database with full version control and amendment tracking.
 
-**Version**: 1.4  
-**Key Features**: DSL parsing, regulatory ontology, ownership tracking, incremental amendments, version control, RAG & vector search
+**Version**: 1.5  
+**Key Features**: DSL parsing, regulatory ontology, ownership tracking, incremental amendments, version control, RAG & vector search, feedback loop learning
 
 ## Common Development Commands
 
@@ -23,6 +23,7 @@ KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Cus
 - `make test-verbose` - Run all tests with verbose output
 - `make test-parser` - Run parser tests specifically
 - `./scripts/test_semantic_search.sh` - Test RAG & vector search functionality
+- `./scripts/test_feedback.sh` - Test RAG feedback loop system
 
 ### Dependencies and Maintenance
 - `make deps` - Download and tidy dependencies
@@ -42,11 +43,12 @@ KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Cus
 - `engine/` - Execution engine that processes parsed cases
 - `storage/` - PostgreSQL database layer using sqlx
 - `model/` - Data models (KycCase, AttributeSource, DocumentRequirement, AttributeMetadata, etc.)
-- `ontology/` - Regulatory data ontology (regulations, documents, attributes) + metadata repository
+- `ontology/` - Regulatory data ontology (regulations, documents, attributes) + metadata repository + feedback repository
 - `amend/` - Amendment system with predefined mutations
 - `token/` - KYC token management
 - `rag/` - RAG embeddings and vector search (OpenAI integration)
 - `lineage/` - Attribute lineage and derivation engine
+- `api/` - HTTP API handlers for RAG search and feedback endpoints
 
 ### Data Flow
 
@@ -539,6 +541,91 @@ See [RAG_VECTOR_SEARCH.md](RAG_VECTOR_SEARCH.md) for complete documentation.
 
 ---
 
+---
+
+## RAG Feedback Loop (v1.5)
+
+The system now includes a self-correcting feedback mechanism that continuously improves search relevance:
+
+### Key Features
+- **Self-Learning**: Automatically adjusts relevance scores based on user and AI agent feedback
+- **Multi-Agent Support**: Accepts feedback from humans, AI agents, and automated systems
+- **Confidence Weighting**: Scales impact based on feedback confidence (0.0-1.0)
+- **Real-Time Updates**: Database triggers apply changes immediately
+- **Analytics Dashboard**: Track sentiment trends and learning progress
+
+### Quick Setup
+```bash
+# Apply migration
+./scripts/migrate_feedback.sh
+
+# Start API server
+go run cmd/kycserver/main.go
+
+# Submit test feedback
+curl -X POST http://localhost:8080/rag/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query_text": "beneficial owner name",
+    "attribute_code": "UBO_NAME",
+    "feedback": "positive",
+    "confidence": 0.9,
+    "agent_type": "human"
+  }'
+
+# View analytics
+curl http://localhost:8080/rag/feedback/analytics
+```
+
+### API Endpoints
+- `POST /rag/feedback` - Submit feedback on search results
+- `GET /rag/feedback/recent` - Get recent feedback entries
+- `GET /rag/feedback/analytics` - Get feedback analytics and trends
+- `GET /rag/feedback/attribute/{code}` - Get feedback for specific attribute
+- `GET /rag/feedback/summary` - Get aggregated summary
+
+### Database Schema
+```sql
+-- Feedback table with trigger-based learning
+CREATE TABLE rag_feedback (
+    id SERIAL PRIMARY KEY,
+    query_text TEXT NOT NULL,
+    attribute_code TEXT,
+    document_code TEXT,
+    regulation_code TEXT,
+    feedback feedback_sentiment,  -- positive/negative/neutral
+    confidence FLOAT DEFAULT 1.0,
+    agent_name TEXT,
+    agent_type TEXT,              -- human/ai/automated
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Automatic relevance score adjustment
+CREATE TRIGGER trig_feedback_relevance
+AFTER INSERT ON rag_feedback
+FOR EACH ROW
+EXECUTE FUNCTION update_relevance();
+```
+
+### Learning Mechanism
+```
+Feedback → Trigger → Score Adjustment
+  positive: relevance_score + (0.05 × confidence)
+  negative: relevance_score - (0.05 × confidence)
+  neutral:  no change
+```
+
+### Use Cases
+1. **AI Agent Improvement**: AI agents submit feedback to improve future searches
+2. **Human Validation**: Compliance officers validate search results
+3. **A/B Testing**: Automated systems test different relevance strategies
+4. **Quality Monitoring**: Track search effectiveness over time
+
+See [RAG_FEEDBACK.md](RAG_FEEDBACK.md) for complete documentation.
+
+---
+
 **Last Updated**: 2024  
-**Version**: 1.4  
+**Version**: 1.5  
 **Maintainer**: See repository metadata
+</text>

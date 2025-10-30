@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package kyc.dsl;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb;pb";
+
+import "google/protobuf/timestamp.proto";
+
+// DslService provides operations for executing and managing DSL cases
+service DslService {
+  // Execute runs a specific function/amendment on a KYC case
+  rpc Execute (ExecuteRequest) returns (ExecuteResponse);
+
+  // Validate checks if a DSL case is valid
+  rpc Validate (ValidateRequest) returns (ValidationResult);
+
+  // Parse converts DSL text into structured format
+  rpc Parse (ParseRequest) returns (ParseResponse);
+
+  // Serialize converts structured case back to DSL
+  rpc Serialize (SerializeRequest) returns (SerializeResponse);
+
+  // Amend applies a predefined amendment to a case
+  rpc Amend (AmendRequest) returns (AmendResponse);
+
+  // ListAmendments returns available amendment types
+  rpc ListAmendments (ListAmendmentsRequest) returns (ListAmendmentsResponse);
+
+  // GetGrammar returns the current DSL grammar definition
+  rpc GetGrammar (GetGrammarRequest) returns (GrammarResponse);
+}
+
+// ExecuteRequest contains the case and function to execute
+message ExecuteRequest {
+  string case_id = 1;
+  string function_name = 2;
+  map<string, string> arguments = 3;
+}
+
+// ExecuteResponse contains the result of execution
+message ExecuteResponse {
+  string updated_dsl = 1;
+  string message = 2;
+  bool success = 3;
+  string case_id = 4;
+  int32 new_version = 5;
+}
+
+// ValidateRequest contains the case to validate
+message ValidateRequest {
+  string case_id = 1;
+  string dsl = 2; // Optional: validate DSL without persisting
+}
+
+// ValidationResult contains validation outcome
+message ValidationResult {
+  bool valid = 1;
+  repeated string errors = 2;
+  repeated string warnings = 3;
+  repeated ValidationIssue issues = 4;
+}
+
+// ValidationIssue represents a single validation issue
+message ValidationIssue {
+  string severity = 1; // error, warning, info
+  string message = 2;
+  string code = 3;
+  int32 line = 4;
+  int32 column = 5;
+}
+
+// ParseRequest contains DSL text to parse
+message ParseRequest {
+  string dsl = 1;
+}
+
+// ParseResponse contains the parsed structure
+message ParseResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ParsedCase cases = 3;
+  repeated string errors = 4;
+}
+
+// ParsedCase represents a parsed KYC case structure
+message ParsedCase {
+  string name = 1;
+  string nature = 2;
+  string purpose = 3;
+  string client_business_unit = 4;
+  string policy = 5;
+  string function = 6;
+  string obligation = 7;
+  string kyc_token = 8;
+  OwnershipStructure ownership = 9;
+  DataDictionary data_dictionary = 10;
+  DocumentRequirements document_requirements = 11;
+}
+
+// OwnershipStructure represents ownership details
+message OwnershipStructure {
+  string entity_name = 1;
+  repeated Owner owners = 2;
+  repeated BeneficialOwner beneficial_owners = 3;
+  repeated Controller controllers = 4;
+}
+
+// Owner represents an ownership stake
+message Owner {
+  string name = 1;
+  float percentage = 2;
+}
+
+// BeneficialOwner represents a beneficial ownership stake
+message BeneficialOwner {
+  string name = 1;
+  float percentage = 2;
+}
+
+// Controller represents a controlling party
+message Controller {
+  string name = 1;
+  string role = 2;
+}
+
+// DataDictionary represents attribute sources
+message DataDictionary {
+  repeated AttributeDefinition attributes = 1;
+}
+
+// AttributeDefinition represents a single attribute's sources
+message AttributeDefinition {
+  string code = 1;
+  repeated string primary_sources = 2;
+  repeated string secondary_sources = 3;
+  repeated string tertiary_sources = 4;
+}
+
+// DocumentRequirements represents required documents
+message DocumentRequirements {
+  string jurisdiction = 1;
+  repeated DocumentRequirement required = 2;
+}
+
+// DocumentRequirement represents a required document
+message DocumentRequirement {
+  string code = 1;
+  string name = 2;
+}
+
+// SerializeRequest contains structured case to serialize
+message SerializeRequest {
+  ParsedCase case = 1;
+}
+
+// SerializeResponse contains the DSL representation
+message SerializeResponse {
+  bool success = 1;
+  string dsl = 2;
+  string message = 3;
+}
+
+// AmendRequest contains amendment to apply
+message AmendRequest {
+  string case_name = 1;
+  string amendment_type = 2; // policy-discovery, document-discovery, etc.
+  map<string, string> parameters = 3;
+}
+
+// AmendResponse contains the amended case
+message AmendResponse {
+  bool success = 1;
+  string message = 2;
+  string updated_dsl = 3;
+  int32 new_version = 4;
+  string sha256_hash = 5;
+}
+
+// ListAmendmentsRequest can include filters
+message ListAmendmentsRequest {}
+
+// ListAmendmentsResponse contains available amendments
+message ListAmendmentsResponse {
+  repeated AmendmentType amendments = 1;
+}
+
+// AmendmentType describes an available amendment
+message AmendmentType {
+  string name = 1;
+  string description = 2;
+  repeated string parameters = 3;
+}
+
+// GetGrammarRequest retrieves grammar info
+message GetGrammarRequest {}
+
+// GrammarResponse contains the DSL grammar
+message GrammarResponse {
+  string ebnf = 1;
+  string version = 2;
+  google.protobuf.Timestamp created_at = 3;
+}

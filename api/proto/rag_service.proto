@@ -1,0 +1,231 @@
+syntax = "proto3";
+
+package kyc.rag;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb;pb";
+
+import "google/protobuf/timestamp.proto";
+
+// RagService provides RAG (Retrieval-Augmented Generation) operations
+// for semantic search and feedback on regulatory attributes
+service RagService {
+  // AttributeSearch performs semantic vector search on attributes
+  rpc AttributeSearch (RagSearchRequest) returns (RagSearchResponse);
+
+  // SimilarAttributes finds attributes similar to a given attribute
+  rpc SimilarAttributes (SimilarAttributesRequest) returns (RagSearchResponse);
+
+  // TextSearch performs traditional text-based search
+  rpc TextSearch (TextSearchRequest) returns (RagSearchResponse);
+
+  // GetAttribute retrieves complete metadata for a specific attribute
+  rpc GetAttribute (GetAttributeRequest) returns (AttributeMetadata);
+
+  // SubmitFeedback submits user or AI agent feedback on search results
+  rpc SubmitFeedback (RagFeedbackRequest) returns (RagFeedbackResponse);
+
+  // GetRecentFeedback retrieves recent feedback entries
+  rpc GetRecentFeedback (GetRecentFeedbackRequest) returns (stream RagFeedback);
+
+  // GetFeedbackAnalytics retrieves comprehensive feedback analytics
+  rpc GetFeedbackAnalytics (GetFeedbackAnalyticsRequest) returns (FeedbackAnalytics);
+
+  // GetMetadataStats retrieves repository statistics
+  rpc GetMetadataStats (GetMetadataStatsRequest) returns (MetadataStats);
+
+  // EnrichedAttributeSearch performs search with full context (docs + regulations)
+  rpc EnrichedAttributeSearch (RagSearchRequest) returns (EnrichedSearchResponse);
+
+  // HealthCheck verifies RAG system health
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// RagSearchRequest contains parameters for semantic search
+message RagSearchRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+// RagSearchResponse contains search results
+message RagSearchResponse {
+  string query = 1;
+  int32 limit = 2;
+  int32 count = 3;
+  repeated RagResult results = 4;
+}
+
+// RagResult represents a single search result
+message RagResult {
+  string attribute_code = 1;
+  string risk_level = 2;
+  string data_type = 3;
+  string description = 4;
+  repeated string synonyms = 5;
+  repeated string regulatory_citations = 6;
+  repeated string example_values = 7;
+  float similarity_score = 8;
+  float distance = 9;
+}
+
+// SimilarAttributesRequest finds similar attributes to a source
+message SimilarAttributesRequest {
+  string attribute_code = 1;
+  int32 limit = 2;
+}
+
+// TextSearchRequest performs text-based search
+message TextSearchRequest {
+  string term = 1;
+  int32 limit = 2;
+}
+
+// GetAttributeRequest retrieves a specific attribute
+message GetAttributeRequest {
+  string attribute_code = 1;
+}
+
+// AttributeMetadata contains complete attribute information
+message AttributeMetadata {
+  string code = 1;
+  string risk_level = 2;
+  string data_type = 3;
+  string description = 4;
+  repeated string synonyms = 5;
+  string business_context = 6;
+  repeated string regulatory_citations = 7;
+  repeated string compliance_notes = 8;
+  repeated string example_values = 9;
+  string validation_rules = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  bool has_embedding = 13;
+}
+
+// RagFeedbackRequest submits feedback on search results
+message RagFeedbackRequest {
+  string query_text = 1;
+  string attribute_code = 2;
+  string document_code = 3;
+  string regulation_code = 4;
+  string feedback = 5; // positive, negative, neutral
+  float confidence = 6; // 0.0-1.0
+  string agent_name = 7;
+  string agent_type = 8; // human, ai, automated
+}
+
+// RagFeedbackResponse confirms feedback submission
+message RagFeedbackResponse {
+  string status = 1;
+  int32 id = 2;
+  string feedback = 3;
+  string agent_name = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// GetRecentFeedbackRequest retrieves recent feedback
+message GetRecentFeedbackRequest {
+  int32 limit = 1;
+}
+
+// RagFeedback represents a feedback entry
+message RagFeedback {
+  int32 id = 1;
+  string query_text = 2;
+  string attribute_code = 3;
+  string document_code = 4;
+  string regulation_code = 5;
+  string feedback = 6;
+  float confidence = 7;
+  string agent_name = 8;
+  string agent_type = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// GetFeedbackAnalyticsRequest retrieves analytics
+message GetFeedbackAnalyticsRequest {
+  int32 top = 1; // Top N attributes to include
+}
+
+// FeedbackAnalytics contains comprehensive feedback statistics
+message FeedbackAnalytics {
+  int32 total_feedback = 1;
+  int32 positive_count = 2;
+  int32 negative_count = 3;
+  int32 neutral_count = 4;
+  float avg_confidence = 5;
+  map<string, int32> by_agent_type = 6;
+  repeated AttributeFeedbackSummary top_attributes = 7;
+  repeated RagFeedback recent_feedback = 8;
+}
+
+// AttributeFeedbackSummary represents per-attribute feedback stats
+message AttributeFeedbackSummary {
+  string attribute_code = 1;
+  string feedback = 2;
+  int32 feedback_count = 3;
+  float avg_confidence = 4;
+  string agent_types = 5;
+}
+
+// GetMetadataStatsRequest retrieves repository stats
+message GetMetadataStatsRequest {}
+
+// MetadataStats contains repository statistics
+message MetadataStats {
+  int32 total_attributes = 1;
+  int32 attributes_with_embeddings = 2;
+  float embedding_coverage_percent = 3;
+  repeated RiskDistribution risk_distribution = 4;
+}
+
+// RiskDistribution represents count by risk level
+message RiskDistribution {
+  string risk_level = 1;
+  int32 count = 2;
+}
+
+// EnrichedSearchResponse contains results with full context
+message EnrichedSearchResponse {
+  string query = 1;
+  int32 limit = 2;
+  int32 count = 3;
+  repeated EnrichedResult results = 4;
+}
+
+// EnrichedResult contains attribute with related docs and regulations
+message EnrichedResult {
+  RagResult attribute = 1;
+  repeated DocumentInfo documents = 2;
+  repeated RegulationInfo regulations = 3;
+}
+
+// DocumentInfo represents document metadata
+message DocumentInfo {
+  string code = 1;
+  string title = 2;
+  string jurisdiction = 3;
+  string doc_type = 4;
+  string description = 5;
+}
+
+// RegulationInfo represents regulation metadata
+message RegulationInfo {
+  string code = 1;
+  string title = 2;
+  string citation = 3;
+  string summary = 4;
+  string region = 5;
+}
+
+// HealthCheckRequest checks system health
+message HealthCheckRequest {}
+
+// HealthCheckResponse contains health status
+message HealthCheckResponse {
+  string status = 1;
+  string model = 2;
+  int32 dimensions = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string database_status = 5;
+  string embedder_status = 6;
+}

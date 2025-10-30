@@ -71,6 +71,13 @@ func main() {
 	mux.HandleFunc("/rag/health", corsMiddleware(ragHandler.HandleHealth))
 	mux.HandleFunc("/rag/attribute/", corsMiddleware(ragHandler.HandleGetAttribute))
 
+	// RAG Feedback endpoints
+	mux.HandleFunc("/rag/feedback", corsMiddleware(ragHandler.HandleFeedback))
+	mux.HandleFunc("/rag/feedback/recent", corsMiddleware(ragHandler.HandleRecentFeedback))
+	mux.HandleFunc("/rag/feedback/analytics", corsMiddleware(ragHandler.HandleFeedbackAnalytics))
+	mux.HandleFunc("/rag/feedback/attribute/", corsMiddleware(ragHandler.HandleFeedbackByAttribute))
+	mux.HandleFunc("/rag/feedback/summary", corsMiddleware(ragHandler.HandleFeedbackSummary))
+
 	// Root endpoint
 	mux.HandleFunc("/", corsMiddleware(handleRoot))
 
@@ -95,6 +102,11 @@ func main() {
 		log.Println("   GET  /rag/similar_attributes?code=<code> - Similar attributes")
 		log.Println("   GET  /rag/text_search?term=<term>        - Text search")
 		log.Println("   GET  /rag/attribute/<code>               - Get attribute metadata")
+		log.Println("   POST /rag/feedback                       - Submit feedback")
+		log.Println("   GET  /rag/feedback/recent                - Recent feedback")
+		log.Println("   GET  /rag/feedback/analytics             - Feedback analytics")
+		log.Println("   GET  /rag/feedback/attribute/<code>      - Feedback by attribute")
+		log.Println("   GET  /rag/feedback/summary               - Feedback summary")
 		log.Println()
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -204,7 +216,66 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
         <div class="example">curl http://localhost:8080/rag/attribute/TAX_RESIDENCY_COUNTRY</div>
     </div>
 
+    <h2>🔄 Feedback Endpoints</h2>
+
+    <div class="endpoint">
+        <span class="method">POST</span><span class="path">/rag/feedback</span>
+        <div class="description">
+            Submit feedback on search results to improve relevance scores.
+            <br><strong>Body Parameters (JSON):</strong>
+            <br>• <span class="param">query_text</span> (required) - Original search query
+            <br>• <span class="param">attribute_code</span> (optional) - Attribute being rated
+            <br>• <span class="param">document_code</span> (optional) - Document being rated
+            <br>• <span class="param">regulation_code</span> (optional) - Regulation being rated
+            <br>• <span class="param">feedback</span> (optional) - positive/negative/neutral (default: positive)
+            <br>• <span class="param">confidence</span> (optional) - 0.0-1.0 weight (default: 1.0)
+            <br>• <span class="param">agent_name</span> (optional) - Name of feedback provider
+            <br>• <span class="param">agent_type</span> (optional) - human/ai/automated (default: human)
+        </div>
+        <div class="example">curl -X POST http://localhost:8080/rag/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"query_text":"tax requirements","attribute_code":"TAX_RESIDENCY_COUNTRY","feedback":"positive","confidence":0.9}'</div>
+    </div>
+
+    <div class="endpoint">
+        <span class="method">GET</span><span class="path">/rag/feedback/recent</span>
+        <div class="description">
+            Get recent feedback entries.
+            <br><strong>Parameters:</strong>
+            <br>• <span class="param">limit</span> (optional) - Max results (default: 50)
+        </div>
+        <div class="example">curl "http://localhost:8080/rag/feedback/recent?limit=10"</div>
+    </div>
+
+    <div class="endpoint">
+        <span class="method">GET</span><span class="path">/rag/feedback/analytics</span>
+        <div class="description">
+            Get comprehensive feedback analytics including sentiment distribution and trends.
+            <br><strong>Parameters:</strong>
+            <br>• <span class="param">top</span> (optional) - Top N attributes to include (default: 10)
+        </div>
+        <div class="example">curl "http://localhost:8080/rag/feedback/analytics?top=20"</div>
+    </div>
+
+    <div class="endpoint">
+        <span class="method">GET</span><span class="path">/rag/feedback/attribute/{code}</span>
+        <div class="description">Get all feedback for a specific attribute code.</div>
+        <div class="example">curl http://localhost:8080/rag/feedback/attribute/UBO_NAME</div>
+    </div>
+
+    <div class="endpoint">
+        <span class="method">GET</span><span class="path">/rag/feedback/summary</span>
+        <div class="description">
+            Get aggregated feedback summary by sentiment and agent type.
+            <br><strong>Parameters:</strong>
+            <br>• <span class="param">limit</span> (optional) - Max attributes (default: 20)
+        </div>
+        <div class="example">curl http://localhost:8080/rag/feedback/summary</div>
+    </div>
+
     <h2>📖 Example Queries</h2>
+</text>
+
 
     <div class="endpoint">
         <strong>Find tax-related attributes:</strong>
