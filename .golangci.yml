@@ -1,0 +1,43 @@
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+    - goimports
+    - misspell
+    - gosec
+    - unconvert
+    - goconst
+    - gocyclo
+
+issues:
+  exclude-rules:
+    # Ignore struct tag warnings for participle grammar in parser
+    - path: internal/parser/parser.go
+      linters:
+        - govet
+      text: "struct field tag.*not compatible with reflect.StructTag.Get"
+
+    # Allow file reading in parser (CLI tool reads user-specified files)
+    - path: internal/parser/parser.go
+      linters:
+        - gosec
+      text: "G304.*Potential file inclusion via variable"
+
+  exclude-use-default: false
+
+linters-settings:
+
+  gocyclo:
+    min-complexity: 15
+
+  gosec:
+    excludes:
+      - G104 # Ignore unhandled errors in some contexts
