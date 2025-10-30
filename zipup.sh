@@ -21,14 +21,21 @@ mkdir -p "$TEMP_DIR/$REPO_NAME"
 
 # Use git ls-files to get exactly what's in the repository
 git ls-files | while read -r file; do
-    # Create directory structure if needed
-    mkdir -p "$TEMP_DIR/$REPO_NAME/$(dirname "$file")"
-    # Copy the file
-    cp "$file" "$TEMP_DIR/$REPO_NAME/$file"
+    # Skip if file doesn't exist (e.g., deleted files still in index)
+    if [[ -f "$file" ]]; then
+        # Create directory structure if needed
+        mkdir -p "$TEMP_DIR/$REPO_NAME/$(dirname "$file")"
+        # Copy the file
+        cp "$file" "$TEMP_DIR/$REPO_NAME/$file"
+    fi
 done
 
 echo "📦 Files included in zip:"
-git ls-files | sed 's/^/  ✅ /'
+git ls-files | while read -r file; do
+    if [[ -f "$file" ]]; then
+        echo "  ✅ $file"
+    fi
+done
 
 # Store current directory
 CURRENT_DIR="$(pwd)"
