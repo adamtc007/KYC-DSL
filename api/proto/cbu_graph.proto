@@ -95,12 +95,12 @@ message RelationshipResponse {
 // ValidationResponse contains graph validation results
 message ValidationResponse {
   bool valid = 1;
-  repeated ValidationIssue issues = 2;
+  repeated CbuValidationIssue issues = 4;
   float total_control_pct = 3;  // Sum of all direct ownership
 }
 
 // ValidationIssue represents a single validation problem
-message ValidationIssue {
+message CbuValidationIssue {
   string severity = 1;  // error, warning, info
   string message = 2;
   string entity_id = 3;

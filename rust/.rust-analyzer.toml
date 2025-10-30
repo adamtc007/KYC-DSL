@@ -1,0 +1,30 @@
+# rust-analyzer configuration for KYC-DSL Rust workspace
+# Helps Zed and other IDEs properly analyze only our source code
+
+[check]
+# Use clippy for linting
+command = "clippy"
+
+[cargo]
+# Build script outputs (generated proto code)
+buildScripts.enable = true
+# Don't check on save for faster experience
+buildScripts.overrideCommand = null
+
+[files]
+# Exclude directories from rust-analyzer indexing
+excludeDirs = [
+    "target",
+    ".git",
+]
+
+[diagnostics]
+# Don't show warnings from generated code
+enable = true
+# Experimental: disable proc-macro diagnostics
+experimental.enable = false
+
+[procMacro]
+# Enable but don't show errors from generated code
+enable = true
+attributes.enable = true

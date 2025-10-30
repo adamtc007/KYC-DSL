@@ -26,8 +26,10 @@ go.work
 /bin/
 bin/
 
-# IDE and editor files
-.zed/
+# IDE and editor files (allow workspace configs like rust/.zed/settings.json)
+/.zed/
+**/.zed/state.json
+**/.zed/tasks.json
 
 # OS generated files
 .DS_Store
@@ -49,3 +51,14 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Rust build artifacts
+rust/target/
+rust/**/target/
+**/Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Rust test artifacts
+rust/**/*.profraw
+rust/**/*.profdata

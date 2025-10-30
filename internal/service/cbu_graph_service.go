@@ -126,7 +126,7 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 	// Get the full graph
 	graph := s.getExampleGraph(req.CbuId)
 
-	var issues []*pb.ValidationIssue
+	var issues []*pb.CbuValidationIssue
 	valid := true
 	totalControl := float32(0)
 
@@ -140,7 +140,7 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 	for _, rel := range graph.Relationships {
 		// Validate from entity exists
 		if _, ok := entityMap[rel.FromId]; !ok {
-			issues = append(issues, &pb.ValidationIssue{
+			issues = append(issues, &pb.CbuValidationIssue{
 				Severity:       "error",
 				Message:        fmt.Sprintf("From entity not found: %s", rel.FromId),
 				EntityId:       rel.FromId,
@@ -151,7 +151,7 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 
 		// Validate to entity exists
 		if _, ok := entityMap[rel.ToId]; !ok {
-			issues = append(issues, &pb.ValidationIssue{
+			issues = append(issues, &pb.CbuValidationIssue{
 				Severity:       "error",
 				Message:        fmt.Sprintf("To entity not found: %s", rel.ToId),
 				EntityId:       rel.ToId,
@@ -162,7 +162,7 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 
 		// Validate control percentage
 		if rel.ControlPct < 0 || rel.ControlPct > 100 {
-			issues = append(issues, &pb.ValidationIssue{
+			issues = append(issues, &pb.CbuValidationIssue{
 				Severity:       "error",
 				Message:        fmt.Sprintf("Invalid control percentage: %.2f%%", rel.ControlPct),
 				RelationshipId: rel.Id,
@@ -177,7 +177,7 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 
 		// Check for self-loops
 		if rel.FromId == rel.ToId {
-			issues = append(issues, &pb.ValidationIssue{
+			issues = append(issues, &pb.CbuValidationIssue{
 				Severity:       "warning",
 				Message:        "Self-referential relationship detected",
 				EntityId:       rel.FromId,
@@ -196,14 +196,14 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 
 	for entityId, sum := range controlSums {
 		if sum > 100.01 { // Allow small floating point error
-			issues = append(issues, &pb.ValidationIssue{
+			issues = append(issues, &pb.CbuValidationIssue{
 				Severity: "error",
 				Message:  fmt.Sprintf("Total ownership exceeds 100%% (%.2f%%)", sum),
 				EntityId: entityId,
 			})
 			valid = false
 		} else if sum < 99.99 && sum > 0 {
-			issues = append(issues, &pb.ValidationIssue{
+			issues = append(issues, &pb.CbuValidationIssue{
 				Severity: "warning",
 				Message:  fmt.Sprintf("Ownership sum is %.2f%%, not 100%%", sum),
 				EntityId: entityId,
@@ -213,7 +213,7 @@ func (s *CbuGraphService) ValidateGraph(ctx context.Context, req *pb.GetCbuReque
 
 	// Check for cycles (simple DFS-based cycle detection)
 	if s.hasCycles(graph) {
-		issues = append(issues, &pb.ValidationIssue{
+		issues = append(issues, &pb.CbuValidationIssue{
 			Severity: "warning",
 			Message:  "Circular ownership detected in graph",
 		})

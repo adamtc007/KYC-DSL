@@ -1,0 +1,48 @@
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "check": {
+          "command": "clippy",
+          "extraArgs": ["--", "-D", "warnings"]
+        },
+        "cargo": {
+          "buildScripts": {
+            "enable": true
+          },
+          "features": "all"
+        },
+        "diagnostics": {
+          "enable": true,
+          "experimental": {
+            "enable": false
+          }
+        },
+        "files": {
+          "excludeDirs": [
+            "target",
+            ".git"
+          ]
+        },
+        "procMacro": {
+          "enable": true,
+          "attributes": {
+            "enable": true
+          }
+        }
+      }
+    }
+  },
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/target",
+    "**/.zed"
+  ],
+  "languages": {
+    "Rust": {
+      "format_on_save": "on",
+      "formatter": "language_server",
+      "tab_size": 4
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # Makefile for KYC-DSL
 # Builds with greenteagc garbage collector experiment
 
-.PHONY: build build-server build-client run run-server run-client test clean lint fmt deps verify proto gateway run-grpc
+.PHONY: build build-server build-client run run-server run-client test clean lint fmt deps verify proto gateway run-grpc rust-build rust-test run-rust rust-clean rust-fmt rust-lint rust-clippy rust-verify lint-all fmt-all
 
 # Build variables
 GOEXPERIMENT := greenteagc
@@ -149,3 +149,64 @@ info:
 # Run comprehensive verification checks
 verify:
 	@./verify.sh
+
+# Rust targets
+# ============
+
+# Build the Rust workspace (core library + gRPC service)
+rust-build:
+	@echo "Building Rust workspace..."
+	cd rust && cargo build --release
+
+# Run Rust tests
+rust-test:
+	@echo "Running Rust tests..."
+	cd rust && cargo test
+
+# Run the Rust gRPC service (listens on port 50060)
+run-rust:
+	@echo "Starting Rust DSL gRPC service on port 50060..."
+	@echo "Make sure protobuf definitions are up to date"
+	cd rust/kyc_dsl_service && cargo run
+
+# Format Rust code
+rust-fmt:
+	@echo "Formatting Rust code..."
+	cd rust && cargo fmt
+
+# Run Rust linter (clippy)
+rust-lint: rust-clippy
+
+rust-clippy:
+	@echo "Running Rust clippy linter..."
+	cd rust && cargo clippy -- -D warnings
+
+# Clean Rust build artifacts
+rust-clean:
+	@echo "Cleaning Rust build artifacts..."
+	cd rust && cargo clean
+
+# Run Rust verification script
+rust-verify:
+	@echo "Running Rust verification checks..."
+	@chmod +x rust/verify.sh
+	cd rust && ./verify.sh
+
+# Build everything (Go + Rust)
+all-with-rust: all rust-build
+	@echo "✓ All components built (Go + Rust)"
+
+# Combined targets (Go + Rust)
+# ============================
+
+# Format all code (Go + Rust)
+fmt-all: fmt rust-fmt
+	@echo "✓ All code formatted (Go + Rust)"
+
+# Lint all code (Go + Rust)
+lint-all: lint rust-clippy
+	@echo "✓ All linters passed (Go + Rust)"
+
+# Verify everything (Go + Rust)
+verify-all: verify rust-verify
+	@echo "✓ Full verification complete (Go + Rust)"

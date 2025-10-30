@@ -4,62 +4,222 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KYC-DSL is a Go-based domain-specific language (DSL) processor for Know Your Customer (KYC) compliance cases. The system parses DSL files containing KYC case definitions and persists them to a PostgreSQL database with full version control and amendment tracking.
+KYC-DSL is a **dual-codebase system** with both Go and Rust implementations sharing Protocol Buffer definitions. The system processes Domain Specific Language (DSL) files for Know Your Customer (KYC) compliance cases, with PostgreSQL persistence, full version control, and semantic search capabilities.
 
-**Version**: 1.5  
-**Key Features**: DSL parsing, regulatory ontology, ownership tracking, incremental amendments, version control, RAG & vector search, feedback loop learning
+**Current Version**: 1.5  
+**Architecture**: Go (primary) + Rust (high-performance alternative) + Shared gRPC/Protobuf API  
+**Key Features**: DSL parsing, regulatory ontology, ownership tracking, amendments, RAG vector search, feedback loop learning
+
+## Quick Architecture
+
+```
+KYC-DSL/
+├── Go Stack (Primary - Production Ready)
+│   ├── cmd/kycctl/          CLI tool
+│   ├── cmd/kycserver/       REST API (port 8080)
+│   ├── cmd/server/          gRPC server (port 50051)
+│   └── internal/            Parser, storage, ontology, RAG
+│
+├── Rust Stack (High-Performance Alternative)
+│   ├── kyc_dsl_core/        Core engine library
+│   └── kyc_dsl_service/     gRPC service (port 50060)
+│
+├── Shared Layer
+│   └── api/proto/           Protobuf definitions
+│       ├── dsl_service.proto
+│       ├── kyc_case.proto
+│       ├── rag_service.proto
+│       └── cbu_graph.proto
+│
+└── Database
+    └── PostgreSQL            Version control, ontology, embeddings
+```
 
 ## Common Development Commands
 
-### Building and Running
-- `make build` - Build the main CLI tool with greenteagc GC experiment
-- `make run` - Build and run with the sample case
-- `make run-file FILE=<dsl-file>` - Build and run with a specific DSL file
-- `make install` - Install binary to GOPATH/bin
-- `make info` - Show build configuration
+### Go Stack (Primary)
 
-### Testing
-- `make test` - Run all tests with greenteagc experiment
-- `make test-verbose` - Run all tests with verbose output
-- `make test-parser` - Run parser tests specifically
-- `./scripts/test_semantic_search.sh` - Test RAG & vector search functionality
-- `./scripts/test_feedback.sh` - Test RAG feedback loop system
+**Build & Run:**
+```bash
+make build              # Build kycctl CLI
+make run                # Run with sample case
+make run-file FILE=x.dsl # Run specific DSL file
+make install            # Install to GOPATH/bin
+```
 
-### Dependencies and Maintenance
-- `make deps` - Download and tidy dependencies
-- `make fmt` - Format all Go code
-- `make lint` - Run golangci-lint
-- `make clean` - Remove build artifacts
+**Testing:**
+```bash
+make test               # All tests
+make test-verbose       # Verbose output
+make test-parser        # Parser tests only
+./scripts/test_semantic_search.sh  # RAG tests
+./scripts/test_feedback.sh         # Feedback system tests
+```
 
-## Architecture
+**Maintenance:**
+```bash
+make deps               # Update dependencies
+make fmt                # Format code
+make lint               # Run linter
+make clean              # Clean artifacts
+```
+
+### Rust Stack (Alternative Engine)
+
+**Build & Run:**
+```bash
+make rust-build         # Build Rust workspace
+make rust-service       # Run gRPC service (port 50060)
+make rust-test          # Run Rust tests
+```
+
+**Direct Commands:**
+```bash
+cd rust
+cargo build             # Build workspace
+cargo test              # Run tests
+cargo run -p kyc_dsl_service  # Start service
+./verify.sh             # Verify installation
+```
+
+### Database
+
+**Setup:**
+```bash
+make docker-up          # Start PostgreSQL (if using Docker)
+./scripts/init_ontology.sh  # Initialize schema + seed data
+```
+
+**Environment Variables:**
+- `PGHOST` (default: localhost)
+- `PGPORT` (default: 5432)
+- `PGUSER` (default: current user)
+- `PGDATABASE` (default: kyc_dsl)
+- `OPENAI_API_KEY` (required for RAG features)
+
+## Go Stack Architecture
 
 ### Core Components
 
-**`cmd/kycctl/`** - Main CLI application entry point (delegates to internal/cli)
+**CLI & Servers:**
+- `cmd/kycctl/` - Command-line interface
+- `cmd/kycserver/` - REST API server (port 8080)
+- `cmd/server/` - gRPC server (port 50051)
 
-**`internal/`** - Private application packages:
-- `cli/` - CLI routing and command handlers
-- `parser/` - DSL parsing, binding, serialization, validation
-- `engine/` - Execution engine that processes parsed cases
-- `storage/` - PostgreSQL database layer using sqlx
-- `model/` - Data models (KycCase, AttributeSource, DocumentRequirement, AttributeMetadata, etc.)
-- `ontology/` - Regulatory data ontology (regulations, documents, attributes) + metadata repository + feedback repository
-- `amend/` - Amendment system with predefined mutations
-- `token/` - KYC token management
-- `rag/` - RAG embeddings and vector search (OpenAI integration)
-- `lineage/` - Attribute lineage and derivation engine
-- `api/` - HTTP API handlers for RAG search and feedback endpoints
+**Internal Packages:**
+- `internal/cli/` - CLI command routing
+- `internal/parser/` - S-expression DSL parser with validation
+- `internal/engine/` - Case execution engine
+- `internal/storage/` - PostgreSQL layer (sqlx)
+- `internal/model/` - Data models (KycCase, attributes, documents)
+- `internal/ontology/` - Regulatory ontology + metadata repository
+- `internal/amend/` - Amendment system with predefined mutations
+- `internal/rag/` - OpenAI embeddings & vector search
+- `internal/lineage/` - Attribute derivation engine
+- `internal/api/` - HTTP API handlers
 
 ### Data Flow
 
-1. **Parse**: CLI reads DSL file → `parser.ParseFile()` → AST
-2. **Bind**: AST → `parser.Bind()` → typed `model.KycCase`
-3. **Validate**: `parser.ValidateDSL()` checks grammar + semantics + ownership rules
-4. **Execute**: `engine.RunCase()` processes the case
-5. **Persist**: `storage.InsertCase()` saves to PostgreSQL with SHA-256 hash
-6. **Amend**: `amend.ApplyAmendment()` applies incremental changes with versioning
+```
+DSL File → Parse → Bind → Validate → Execute → Persist
+              ↓      ↓       ↓         ↓        ↓
+            AST   Model   Grammar   Engine   PostgreSQL
+                         Ontology            (versioned)
+```
 
-### DSL Format (v1.2)
+### Key Operations
+
+1. **Parse**: `parser.ParseFile()` → S-expression AST
+2. **Bind**: AST → `model.KycCase` (typed structure)
+3. **Validate**: Grammar + semantics + ontology + ownership rules
+4. **Execute**: `engine.RunCase()` processes the case
+5. **Persist**: `storage.InsertCase()` with SHA-256 versioning
+6. **Amend**: `amend.ApplyAmendment()` incremental changes
+
+## Rust Stack Architecture
+
+### Core Components
+
+**kyc_dsl_core (Library):**
+- `parser.rs` - nom-based S-expression parser
+- `compiler.rs` - AST → instruction compilation
+- `executor.rs` - Stateful execution engine
+- Pure Rust, type-safe, no unsafe code
+
+**kyc_dsl_service (gRPC Server):**
+- Wraps `kyc_dsl_core` library
+- Implements `api/proto/dsl_service.proto`
+- Compatible with Go gRPC clients
+- Runs on port **50060**
+
+### Rust API
+
+```rust
+// Compile DSL source to execution plan
+pub fn compile_dsl(src: &str) -> Result<String, DslError>
+
+// Execute compiled plan
+pub fn execute_plan(plan_json: &str) -> Result<String, DslError>
+```
+
+## Shared Protocol Buffers
+
+Both Go and Rust implement the same gRPC services defined in `api/proto/`:
+
+**Services:**
+- `DslService` - DSL parsing, validation, execution
+- `RagService` - Semantic search and feedback
+- `CbuGraphService` - Client Business Unit graph operations
+
+**Message Types:**
+- `KycCase` - Core case structure
+- `ExecuteRequest/Response` - Function execution
+- `SearchRequest/Response` - Vector search
+- `FeedbackRequest` - Learning feedback
+
+## CLI Commands Reference
+
+### Grammar & Ontology
+
+```bash
+./kycctl grammar        # Store grammar definition
+./kycctl ontology       # Display ontology structure
+```
+
+### Process Cases
+
+```bash
+./kycctl sample_case.dsl           # Process sample
+./kycctl ontology_example.dsl      # Ontology-aware case
+./kycctl ownership_case.dsl        # Ownership structures
+```
+
+### Amendments (Incremental Updates)
+
+```bash
+./kycctl amend CASE-NAME --step=policy-discovery
+./kycctl amend CASE-NAME --step=document-solicitation
+./kycctl amend CASE-NAME --step=document-discovery    # Auto-populate from ontology
+./kycctl amend CASE-NAME --step=ownership-discovery
+./kycctl amend CASE-NAME --step=risk-assessment
+./kycctl amend CASE-NAME --step=approve
+```
+
+### RAG & Semantic Search
+
+```bash
+# Setup
+export OPENAI_API_KEY="sk-..."
+./kycctl seed-metadata              # Generate embeddings
+
+# Search
+./kycctl search-metadata "tax compliance"  # Semantic search
+./kycctl similar-attributes UBO_NAME       # Find related attributes
+./kycctl text-search "ownership"           # Keyword search
+./kycctl metadata-stats                    # Repository statistics
+```
+
+## DSL Format
 
 S-expression syntax with ontology-aware extensions:
 
@@ -73,559 +233,151 @@ S-expression syntax with ontology-aware extensions:
   (function ACTION)
   (obligation OBLIGATION-CODE)
   
-  ; v1.2: Ownership & Control
+  ; Ownership & Control
   (ownership-structure
     (entity ENTITY-NAME)
     (owner NAME PERCENT%)
     (beneficial-owner NAME PERCENT%)
     (controller NAME "ROLE"))
   
-  ; v1.2: Regulatory Ontology
+  ; Regulatory Ontology
   (data-dictionary
     (attribute ATTR-CODE
       (primary-source (document DOC-CODE))
-      (secondary-source (document DOC-CODE))
-      (tertiary-source "TEXT")))
+      (secondary-source (document DOC-CODE))))
   
   (document-requirements
     (jurisdiction JURISDICTION)
-    (required
-      (document CODE "NAME")))
+    (required (document CODE "NAME")))
   
   (kyc-token "status")
 )
 ```
 
-## Database Setup
+## Database Schema
 
-### Environment Variables
-- `PGHOST` (default: localhost)
-- `PGPORT` (default: 5432)
-- `PGUSER` (default: current user)
-- `PGPASSWORD` (optional)
-- `PGDATABASE` (default: kyc_dsl)
+**PostgreSQL Database**: `kyc_dsl`  
+**Tables**: 21 core tables + 3 views
 
-### Initialize Ontology
+**Key Tables:**
+- `kyc_cases`, `case_versions`, `case_amendments` - Version control
+- `kyc_regulations`, `kyc_documents`, `kyc_attributes` - Ontology (8 regs, 27 docs, 36 attrs)
+- `kyc_attr_doc_links`, `kyc_doc_reg_links` - Relationships (51+ mappings)
+- `kyc_attribute_metadata` - Embeddings with pgvector
+- `rag_feedback` - Learning feedback system
+
+**Extensions:**
+- `pgvector` - 1536-dimensional embeddings (OpenAI text-embedding-3-large)
+
+## Testing
+
+### Go Tests
+
 ```bash
-./scripts/init_ontology.sh
+make test-parser        # Parser + validation
+make test               # Full suite
+make lint               # Code quality
 ```
 
-This creates:
-- `kyc_cases`, `case_versions`, `case_amendments`, `grammar_versions`, `policy_registry`
-- `kyc_regulations`, `kyc_documents`, `kyc_attributes`, `kyc_attr_doc_links`, `kyc_doc_reg_links`
+### Rust Tests
 
-## CLI Commands & Call Trees
-
-### 1. Grammar Command
 ```bash
-./kycctl grammar
+cd rust
+cargo test              # All Rust tests
+cargo clippy            # Linter
+./verify.sh             # Integration check
 ```
 
-**Call Tree:**
-```
-cli.Run(["grammar"])
-└── cli.RunGrammarCommand()
-    ├── storage.ConnectPostgres()
-    ├── parser.CurrentGrammarEBNF()
-    └── storage.InsertGrammar()
-```
+### Integration Tests
 
-**Purpose**: Store current DSL grammar definition in database for validation reference.
-
----
-
-### 2. Ontology Command
 ```bash
-./kycctl ontology
+./scripts/test_semantic_search.sh
+./scripts/test_feedback.sh
+./test_ontology_validation.sh
 ```
-
-**Call Tree:**
-```
-cli.Run(["ontology"])
-└── cli.RunOntologyCommand()
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewRepository()
-    └── repo.DebugPrintOntologySummary()
-        ├── repo.ListRegulations()
-        └── repo.ListDocumentsByRegulation()
-```
-
-**Purpose**: Display regulatory data ontology structure (regulations → documents).
-
----
-
-### 3. Process DSL File
-```bash
-./kycctl sample_case.dsl
-./kycctl ontology_example.dsl
-```
-
-**Call Tree:**
-```
-cli.Run(["sample_case.dsl"])
-└── cli.RunProcessCommand("sample_case.dsl")
-    ├── parser.ParseFile()           # Read & tokenize DSL
-    ├── parser.Bind()                # AST → model.KycCase
-    ├── storage.ConnectPostgres()
-    ├── storage.GetGrammar()
-    ├── parser.ValidateDSL()         # Grammar + semantics + ownership
-    ├── parser.SerializeCases()      # Model → DSL text
-    ├── cli.displayCaseInfo()
-    └── engine.NewExecutor().RunCase()
-        └── storage.InsertCase()     # Persist with hash
-```
-
-**Purpose**: Parse, validate, and persist a DSL case to database.
-
----
-
-### 4. Amendment Commands
-```bash
-./kycctl amend CASE-NAME --step=STEP-NAME
-```
-
-**Available Steps:**
-- `policy-discovery` - Add policy discovery function and policies
-- `document-solicitation` - Add document solicitation and obligations
-- `document-discovery` - Auto-populate documents from ontology (ontology-aware)
-- `ownership-discovery` - Add ownership structure and control hierarchy
-- `risk-assessment` - Add risk assessment function
-- `regulator-notify` - Add regulator notification
-- `approve` - Finalize case as approved
-- `decline` - Finalize case as declined
-- `review` - Set case to review status
-
-**Call Tree (Standard Amendment):**
-```
-cli.Run(["amend", "CASE-NAME", "--step=policy-discovery"])
-└── cli.RunAmendCommand("CASE-NAME", "policy-discovery")
-    ├── storage.ConnectPostgres()
-    ├── amend.AddPolicyDiscovery        # Mutation function
-    └── amend.ApplyAmendment()
-        ├── storage.GetLatestCase()     # Load current version
-        ├── parser.Bind()               # DSL → model
-        ├── mutation(kycCase)           # Apply changes
-        ├── parser.SerializeCases()     # Model → DSL
-        ├── storage.InsertCase()        # New version
-        └── storage.InsertAmendment()   # Record amendment
-```
-
-**Call Tree (Ontology-Aware Amendment):**
-```
-cli.Run(["amend", "CASE-NAME", "--step=document-discovery"])
-└── cli.RunAmendCommand("CASE-NAME", "document-discovery")
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewRepository()
-    └── amend.ApplyAmendment()
-        ├── storage.GetLatestCase()
-        ├── parser.Bind()
-        ├── amend.AddDocumentDiscovery(case, repo)
-        │   ├── repo.ListDocumentsByRegulation("AMLD5")
-        │   ├── repo.GetDocumentSources("UBO_NAME")
-        │   └── Populates DataDictionary & DocumentRequirements
-        ├── parser.SerializeCases()
-        ├── storage.InsertCase()
-        └── storage.InsertAmendment()
-```
-
-**Purpose**: Apply incremental changes to existing cases with full version control.
-
----
-
-### 5. Seed Metadata with Embeddings
-```bash
-./kycctl seed-metadata
-```
-
-**Call Tree:**
-```
-cli.Run(["seed-metadata"])
-└── cli.RunSeedMetadataCommand()
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewMetadataRepo()
-    ├── rag.NewEmbedder()
-    └── For each sample attribute:
-        ├── embedder.GenerateEmbedding()    # OpenAI API call
-        └── repo.UpsertMetadata()           # Store with embedding
-```
-
-**Purpose**: Generate vector embeddings for all attributes using OpenAI's text-embedding-3-large model.
-
----
-
-### 6. Semantic Search
-```bash
-./kycctl search-metadata "tax reporting requirements"
-./kycctl search-metadata "beneficial ownership" --limit=5
-```
-
-**Call Tree:**
-```
-cli.Run(["search-metadata", "query"])
-└── cli.RunSearchMetadataCommand("query", limit)
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewMetadataRepo()
-    ├── rag.NewEmbedder()
-    ├── embedder.GenerateEmbeddingFromText()  # Query embedding
-    └── repo.SearchByVector()                 # Vector similarity search
-```
-
-**Purpose**: Perform semantic search on attribute metadata using vector embeddings.
-
----
-
-### 7. Find Similar Attributes
-```bash
-./kycctl similar-attributes UBO_NAME
-./kycctl similar-attributes SANCTIONS_SCREENING_STATUS --limit=5
-```
-
-**Call Tree:**
-```
-cli.Run(["similar-attributes", "ATTR_CODE"])
-└── cli.RunSimilarAttributesCommand("ATTR_CODE", limit)
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewMetadataRepo()
-    ├── repo.GetMetadata()                    # Get source attribute
-    └── repo.FindSimilarAttributes()          # Vector similarity
-```
-
-**Purpose**: Find attributes semantically related to a given attribute code.
-
----
-
-### 8. Text Search
-```bash
-./kycctl text-search "ownership"
-./kycctl text-search "PEP"
-```
-
-**Call Tree:**
-```
-cli.Run(["text-search", "term"])
-└── cli.RunTextSearchCommand("term")
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewMetadataRepo()
-    └── repo.SearchByText()                   # Traditional text search
-```
-
-**Purpose**: Search attributes by keyword, synonym, or business context (no embedding required).
-
----
-
-### 9. Metadata Statistics
-```bash
-./kycctl metadata-stats
-```
-
-**Call Tree:**
-```
-cli.Run(["metadata-stats"])
-└── cli.RunMetadataStatsCommand()
-    ├── storage.ConnectPostgres()
-    ├── ontology.NewMetadataRepo()
-    └── repo.GetMetadataStats()
-        ├── repo.CountMetadata()
-        ├── repo.CountEmbeddings()
-        └── SQL: Risk distribution query
-```
-
-**Purpose**: Display repository health, embedding coverage, and risk distribution.
-
----
-
-## Test Invocations
-
-### Parser Tests
-```bash
-make test-parser
-# or
-GOEXPERIMENT=greenteagc go test ./internal/parser -v
-```
-
-**Test Coverage:**
-- `TestParseSimpleCase` - Basic DSL parsing
-- `TestParseMultipleCases` - Multiple cases in one file
-- `TestBindCase` - AST to model binding
-- `TestSerializeCase` - Model to DSL round-trip
-- `TestRoundTrip` - Full parse → bind → serialize → parse cycle
-- `TestOwnershipValidation` - Ownership sum and controller rules
-- `TestQuotedStrings` - Quoted string handling
-
-### Full Test Suite
-```bash
-make test
-# or
-GOEXPERIMENT=greenteagc go test ./...
-```
-
-### Linting
-```bash
-make lint
-# or
-golangci-lint run
-```
-
----
-
-## Sample Test Cases
-
-### Basic Case
-```bash
-./kycctl sample_case.dsl
-```
-
-### Ownership Cases
-```bash
-./kycctl ownership_case.dsl
-./kycctl test_ownership.dsl
-./kycctl test_valid_multi_owner.dsl
-```
-
-### Ontology-Aware Case
-```bash
-./kycctl ontology_example.dsl
-```
-
-### Amendment Workflow
-```bash
-# 1. Process initial case
-./kycctl sample_case.dsl
-
-# 2. Add policies
-./kycctl amend AVIVA-EU-EQUITY-FUND --step=policy-discovery
-
-# 3. Auto-discover documents (uses ontology)
-./kycctl amend AVIVA-EU-EQUITY-FUND --step=document-discovery
-
-# 4. Add ownership
-./kycctl amend AVIVA-EU-EQUITY-FUND --step=ownership-discovery
-
-# 5. Approve
-./kycctl amend AVIVA-EU-EQUITY-FUND --step=approve
-```
-
----
 
 ## Key Files
 
-### Documentation
-- `README.md` - Project overview and getting started
-- `REGULATORY_ONTOLOGY.md` - Comprehensive ontology documentation
-- `AMENDMENT_SYSTEM.md` - Amendment system details
-- `OWNERSHIP_CONTROL.md` - Ownership structure documentation
-- `RAG_VECTOR_SEARCH.md` - Complete RAG & vector search documentation
-- `RAG_QUICKSTART.md` - Quick start guide for semantic search
-- `LINEAGE_EVALUATOR.md` - Attribute lineage and derivation
-- `VALIDATION_AUDIT.md` - Validation and audit trail system
+**Documentation:**
+- `README.md` - Project overview
+- `RUST_QUICKSTART.md` - Rust 5-minute guide
+- `RUST_MIGRATION_REPORT.md` - Architecture details
+- `REGULATORY_ONTOLOGY.md` - Ontology documentation
+- `RAG_VECTOR_SEARCH.md` - Semantic search guide
+- `RAG_FEEDBACK.md` - Feedback loop system
+- `AMENDMENT_SYSTEM.md` - Amendment workflows
+- `OWNERSHIP_CONTROL.md` - Ownership validation
 
-### Migrations & Seeds
-- `internal/storage/migrations/001_regulatory_ontology.sql` - Ontology schema
-- `internal/ontology/seeds/ontology_seed.sql` - Regulations, documents, attributes
+**Configuration:**
+- `Makefile` - Build targets for both Go and Rust
+- `go.mod` - Go dependencies
+- `rust/Cargo.toml` - Rust workspace
 
-### Example DSL Files
-- `sample_case.dsl` - Basic case example
+**Examples:**
+- `sample_case.dsl` - Basic case
 - `ontology_example.dsl` - Full ontology-aware example
-- `ownership_case.dsl` - Ownership structure example
-
----
+- `ownership_case.dsl` - Ownership structures
+- `derived_attributes_example.dsl` - Attribute lineage
 
 ## Dependencies
 
-- `github.com/alecthomas/participle/v2` - Grammar-based parser generation
-- `github.com/jmoiron/sqlx` - PostgreSQL extensions for database/sql
+**Go:**
+- `github.com/alecthomas/participle/v2` - Parser generation
+- `github.com/jmoiron/sqlx` - PostgreSQL extensions
 - `github.com/lib/pq` - PostgreSQL driver
-- `github.com/sashabaranov/go-openai` - OpenAI API client for embeddings
-- `github.com/expr-lang/expr` - Expression language for lineage rules
+- `github.com/sashabaranov/go-openai` - OpenAI embeddings
+- `google.golang.org/grpc` - gRPC framework
+- `google.golang.org/protobuf` - Protocol Buffers
 
----
+**Rust:**
+- `nom` - Parser combinators
+- `serde` - Serialization
+- `tonic` - gRPC framework
+- `tokio` - Async runtime
+- `prost` - Protocol Buffers
 
-## Regulatory Ontology (v1.2)
+## Current Features
 
-The ontology provides semantic grounding for compliance requirements:
+**DSL Processing:**
+- S-expression parsing with validation
+- Grammar-based syntax checking
+- Ontology reference validation
+- Ownership structure validation (sum rules, controllers)
 
-**Regulations**: FATCA, CRS, AMLD5, AMLD6, MAS626, HKMAAML, UKMLR2017, BSAAML
+**Regulatory Ontology:**
+- 8 regulations (FATCA, CRS, AMLD5/6, MAS626, etc.)
+- 27 document types
+- 36 attributes
+- 51+ attribute-document mappings
+- 18+ document-regulation links
 
-**Documents**: 30+ types (W-8BEN, Certificates, UBO Declarations, etc.)
+**Version Control:**
+- SHA-256 content hashing
+- Full case history tracking
+- Incremental amendment system
+- Rollback capability
 
-**Attributes**: 30+ data points (Tax Residency, UBO Info, Entity Details, etc.)
+**RAG & Semantic Search:**
+- OpenAI embeddings (text-embedding-3-large)
+- pgvector similarity search
+- Feedback loop learning
+- Multi-agent feedback support
 
-**Relationships**: 60+ attribute-document mappings with source tiers
+**APIs:**
+- REST API (port 8080)
+- gRPC Go service (port 50051)
+- gRPC Rust service (port 50060)
+- Shared protobuf definitions
 
-See `REGULATORY_ONTOLOGY.md` for complete details.
+## Port Allocation
 
----
-
-## Version History
-
-- **v1.0**: Initial DSL with parsing, validation, storage
-- **v1.1**: Added ownership structures, control hierarchy, amendments
-- **v1.2**: Added regulatory data ontology, data dictionary, document requirements
-- **v1.3**: Added lineage engine, attribute derivation, validation audit trail
-- **v1.4**: Added RAG & vector search with OpenAI embeddings
-
----
-
-## RAG & Vector Search (v1.4)
-
-The system now includes semantic search capabilities over the regulatory ontology:
-
-### Key Features
-- **Semantic Search**: Find attributes by meaning using OpenAI embeddings
-- **Vector Similarity**: Discover related attributes automatically
-- **Agent Integration**: Power AI agents with regulatory context
-- **Synonym Resolution**: Map natural language to formal codes
-- **Embedding Storage**: 1536-dimensional vectors in PostgreSQL with pgvector
-
-### Quick Setup
-```bash
-# Install pgvector extension
-brew install pgvector  # macOS
-sudo apt install postgresql-15-pgvector  # Ubuntu
-
-# Enable in database
-psql -d kyc_dsl -c "CREATE EXTENSION vector;"
-
-# Set OpenAI API key
-export OPENAI_API_KEY="sk-..."
-
-# Seed embeddings
-./kycctl seed-metadata
-
-# Try semantic search
-./kycctl search-metadata "tax compliance requirements"
-./kycctl similar-attributes UBO_NAME
-```
-
-### Architecture
-```
-Query → OpenAI Embedding → Vector Search (pgvector) → Ranked Results
-```
-
-### Use Cases
-1. **AI Agent Context**: "Find attributes for EU fund KYC" → AMLD5 attributes
-2. **Explainability**: "Why need UBO?" → AMLD5 Article 3, FATF Rec 24
-3. **Synonym Resolution**: "Company Name" → REGISTERED_NAME
-4. **Risk Prioritization**: Find CRITICAL attributes for enhanced due diligence
-
-### Database Schema
-```sql
-CREATE TABLE kyc_attribute_metadata (
-    attribute_code TEXT PRIMARY KEY,
-    synonyms TEXT[],
-    business_context TEXT,
-    regulatory_citations TEXT[],
-    embedding vector(1536),  -- OpenAI text-embedding-3-large
-    ...
-);
-
-CREATE INDEX ON kyc_attribute_metadata 
-    USING ivfflat (embedding vector_cosine_ops);
-```
-
-### Example Results
-```
-Query: "tax reporting requirements"
-
-Results:
-1. TAX_RESIDENCY_COUNTRY (similarity: 0.87)
-   - Citations: FATCA §1471(b)(1)(D), CRS
-   - Risk: HIGH
-   
-2. FATCA_STATUS (similarity: 0.85)
-   - Citations: FATCA §1471-1474
-   - Risk: HIGH
-```
-
-See [RAG_VECTOR_SEARCH.md](RAG_VECTOR_SEARCH.md) for complete documentation.
-
----
-
----
-
-## RAG Feedback Loop (v1.5)
-
-The system now includes a self-correcting feedback mechanism that continuously improves search relevance:
-
-### Key Features
-- **Self-Learning**: Automatically adjusts relevance scores based on user and AI agent feedback
-- **Multi-Agent Support**: Accepts feedback from humans, AI agents, and automated systems
-- **Confidence Weighting**: Scales impact based on feedback confidence (0.0-1.0)
-- **Real-Time Updates**: Database triggers apply changes immediately
-- **Analytics Dashboard**: Track sentiment trends and learning progress
-
-### Quick Setup
-```bash
-# Apply migration
-./scripts/migrate_feedback.sh
-
-# Start API server
-go run cmd/kycserver/main.go
-
-# Submit test feedback
-curl -X POST http://localhost:8080/rag/feedback \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query_text": "beneficial owner name",
-    "attribute_code": "UBO_NAME",
-    "feedback": "positive",
-    "confidence": 0.9,
-    "agent_type": "human"
-  }'
-
-# View analytics
-curl http://localhost:8080/rag/feedback/analytics
-```
-
-### API Endpoints
-- `POST /rag/feedback` - Submit feedback on search results
-- `GET /rag/feedback/recent` - Get recent feedback entries
-- `GET /rag/feedback/analytics` - Get feedback analytics and trends
-- `GET /rag/feedback/attribute/{code}` - Get feedback for specific attribute
-- `GET /rag/feedback/summary` - Get aggregated summary
-
-### Database Schema
-```sql
--- Feedback table with trigger-based learning
-CREATE TABLE rag_feedback (
-    id SERIAL PRIMARY KEY,
-    query_text TEXT NOT NULL,
-    attribute_code TEXT,
-    document_code TEXT,
-    regulation_code TEXT,
-    feedback feedback_sentiment,  -- positive/negative/neutral
-    confidence FLOAT DEFAULT 1.0,
-    agent_name TEXT,
-    agent_type TEXT,              -- human/ai/automated
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Automatic relevance score adjustment
-CREATE TRIGGER trig_feedback_relevance
-AFTER INSERT ON rag_feedback
-FOR EACH ROW
-EXECUTE FUNCTION update_relevance();
-```
-
-### Learning Mechanism
-```
-Feedback → Trigger → Score Adjustment
-  positive: relevance_score + (0.05 × confidence)
-  negative: relevance_score - (0.05 × confidence)
-  neutral:  no change
-```
-
-### Use Cases
-1. **AI Agent Improvement**: AI agents submit feedback to improve future searches
-2. **Human Validation**: Compliance officers validate search results
-3. **A/B Testing**: Automated systems test different relevance strategies
-4. **Quality Monitoring**: Track search effectiveness over time
-
-See [RAG_FEEDBACK.md](RAG_FEEDBACK.md) for complete documentation.
+- **8080** - Go REST API (`cmd/kycserver`)
+- **50051** - Go gRPC service (`cmd/server`)
+- **50060** - Rust gRPC service (`kyc_dsl_service`)
+- **5432** - PostgreSQL database
 
 ---
 
 **Last Updated**: 2024  
 **Version**: 1.5  
-**Maintainer**: See repository metadata
-</text>
+**Architecture**: Dual Go/Rust with Shared Protobuf
