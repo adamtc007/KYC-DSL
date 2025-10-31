@@ -63,3 +63,11 @@ rust/**/target/
 rust/**/*.profraw
 rust/**/*.profdata
 *.zip
+
+# Binary executables (root level)
+/main
+/kycctl
+
+# All target directories (Rust analyzer artifacts)
+target/
+
