@@ -18,22 +18,31 @@ KYC-DSL/
 │   ├── cmd/kycctl/          CLI tool
 │   ├── cmd/kycserver/       REST API (port 8080)
 │   ├── cmd/server/          gRPC server (port 50051)
+│   ├── cmd/dataserver/      Data Service gRPC (port 50070) ★ NEW
 │   └── internal/            Parser, storage, ontology, RAG
+│       └── dataservice/     Centralized database layer ★ NEW
 │
 ├── Rust Stack (High-Performance Alternative)
 │   ├── kyc_dsl_core/        Core engine library
 │   └── kyc_dsl_service/     gRPC service (port 50060)
 │
 ├── Shared Layer
-│   └── api/proto/           Protobuf definitions
-│       ├── dsl_service.proto
-│       ├── kyc_case.proto
-│       ├── rag_service.proto
-│       └── cbu_graph.proto
+│   ├── api/proto/           Protobuf definitions
+│   │   ├── dsl_service.proto
+│   │   ├── kyc_case.proto
+│   │   ├── rag_service.proto
+│   │   └── cbu_graph.proto
+│   └── proto_shared/        Shared Go/Rust protos ★ NEW
+│       └── data_service.proto   Dictionary + Case services
 │
 └── Database
     └── PostgreSQL            Version control, ontology, embeddings
 ```
+</thinking>
+
+**Data Service:** Centralized gRPC service (port 50070) that owns all PostgreSQL 
+connections and exposes Dictionary (attributes/documents) and Case (version control) 
+APIs. Used by Go CLI, Rust DSL engine, and UI clients.
 
 ## Common Development Commands
 
@@ -62,6 +71,15 @@ make deps               # Update dependencies
 make fmt                # Format code
 make lint               # Run linter
 make clean              # Clean artifacts
+```
+
+**Data Service (Database Layer):**
+```bash
+make init-dataserver    # Initialize database schema
+make build-dataserver   # Build Data Service
+make run-dataserver     # Run Data Service (port 50070)
+make proto-data         # Regenerate data service protos
+./scripts/test_data_service.sh  # Integration tests
 ```
 
 ### Rust Stack (Alternative Engine)
@@ -374,6 +392,7 @@ cargo clippy            # Linter
 - **8080** - Go REST API (`cmd/kycserver`)
 - **50051** - Go gRPC service (`cmd/server`)
 - **50060** - Rust gRPC service (`kyc_dsl_service`)
+- **50070** - Data Service gRPC (`cmd/dataserver`) ★ NEW
 - **5432** - PostgreSQL database
 
 ---

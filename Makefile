@@ -1,7 +1,7 @@
 # Makefile for KYC-DSL
 # Builds with greenteagc garbage collector experiment
 
-.PHONY: build build-server build-client run run-server run-client test clean lint fmt deps verify proto gateway run-grpc rust-build rust-test run-rust rust-clean rust-fmt rust-lint rust-clippy rust-verify lint-all fmt-all
+.PHONY: build build-server build-client build-dataserver run run-server run-client run-dataserver test clean lint fmt deps verify proto proto-data gateway run-grpc init-dataserver rust-build rust-test run-rust rust-clean rust-fmt rust-lint rust-clippy rust-verify lint-all fmt-all
 
 # Build variables
 GOEXPERIMENT := greenteagc
@@ -9,16 +9,19 @@ BUILD_DIR := bin
 BINARY := kycctl
 SERVER_BINARY := kycserver
 GRPC_SERVER_BINARY := grpcserver
+DATA_SERVER_BINARY := dataserver
 CLIENT_BINARY := kycclient
 CMD_DIR := ./cmd/kycctl
 SERVER_CMD_DIR := ./cmd/kycserver
 GRPC_SERVER_DIR := ./cmd/server
+DATA_SERVER_DIR := ./cmd/dataserver
 CLIENT_CMD_DIR := ./cmd/client
 PROTO_DIR := api/proto
+PROTO_SHARED_DIR := proto_shared
 PB_DIR := api/pb
 
 # Default target - build all binaries
-all: build build-server build-grpc build-client
+all: build build-server build-grpc build-dataserver build-client
 
 # Build CLI
 build: $(BUILD_DIR)/$(BINARY)
@@ -53,6 +56,14 @@ $(BUILD_DIR)/$(CLIENT_BINARY):
 	@mkdir -p $(BUILD_DIR)
 	GOEXPERIMENT=$(GOEXPERIMENT) go build -o $(BUILD_DIR)/$(CLIENT_BINARY) $(CLIENT_CMD_DIR)
 
+# Build the Data Service gRPC server binary
+build-dataserver: $(BUILD_DIR)/$(DATA_SERVER_BINARY)
+
+$(BUILD_DIR)/$(DATA_SERVER_BINARY):
+	@echo "Building $(DATA_SERVER_BINARY) with GOEXPERIMENT=$(GOEXPERIMENT)..."
+	@mkdir -p $(BUILD_DIR)
+	GOEXPERIMENT=$(GOEXPERIMENT) go build -o $(BUILD_DIR)/$(DATA_SERVER_BINARY) $(DATA_SERVER_DIR)
+
 # Run with sample case
 run: build
 	@echo "Running $(BINARY) with sample case..."
@@ -82,6 +93,13 @@ run-client: build-client
 	@echo "Set GRPC_SERVER and CBU_ID env vars to customize"
 	./$(BUILD_DIR)/$(CLIENT_BINARY)
 
+# Run the Data Service gRPC server
+run-dataserver: build-dataserver
+	@echo "Starting Data Service gRPC server (port 50070)..."
+	@echo "Make sure database is running and initialized"
+	@echo "Run 'make init-dataserver' to initialize the database schema"
+	./$(BUILD_DIR)/$(DATA_SERVER_BINARY)
+
 # Run all tests with greenteagc (exclude examples)
 test:
 	@echo "Running tests with GOEXPERIMENT=$(GOEXPERIMENT)..."
@@ -105,6 +123,22 @@ proto:
 		--go-grpc_out=$(PB_DIR) --go-grpc_opt=paths=source_relative \
 		$(PROTO_DIR)/*.proto
 	@echo "✓ Proto files generated in $(PB_DIR)"
+
+# Generate Data Service protobuf code
+proto-data:
+	@echo "Generating Data Service protobuf Go code..."
+	@mkdir -p $(PB_DIR)/kycdata
+	protoc --go_out=. --go-grpc_out=. \
+		--go_opt=module=github.com/adamtc007/KYC-DSL \
+		--go-grpc_opt=module=github.com/adamtc007/KYC-DSL \
+		$(PROTO_SHARED_DIR)/data_service.proto
+	@echo "✓ Data Service proto files generated in $(PB_DIR)/kycdata"
+
+# Initialize Data Service database schema
+init-dataserver:
+	@echo "Initializing Data Service database schema..."
+	@chmod +x scripts/init_data_service.sh
+	@./scripts/init_data_service.sh
 
 # Generate gRPC gateway (optional - requires grpc-gateway)
 gateway:
@@ -145,6 +179,9 @@ info:
 	@echo "Build directory: $(BUILD_DIR)"
 	@echo "CLI binary: $(BINARY)"
 	@echo "Server binary: $(SERVER_BINARY)"
+	@echo "Data Server binary: $(DATA_SERVER_BINARY)"
+	@echo "gRPC Server binary: $(GRPC_SERVER_BINARY)"
+	@echo "Client binary: $(CLIENT_BINARY)"
 
 # Run comprehensive verification checks
 verify:

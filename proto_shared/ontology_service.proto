@@ -1,0 +1,460 @@
+syntax = "proto3";
+
+package kyc.ontology;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb/kycontology";
+option java_multiple_files = true;
+option java_package = "com.kycdsl.ontology";
+
+// ============================================================================
+// OntologyService: Unified service for entities, CBUs, dictionary, and graphs
+// ============================================================================
+service OntologyService {
+  // Entity operations
+  rpc GetEntity (GetEntityRequest) returns (Entity);
+  rpc ListEntities (ListEntitiesRequest) returns (EntityList);
+  rpc CreateEntity (CreateEntityRequest) returns (EntityResponse);
+  rpc UpdateEntity (UpdateEntityRequest) returns (EntityResponse);
+  rpc SearchEntities (SearchRequest) returns (EntityList);
+
+  // CBU operations
+  rpc GetCbu (GetCbuRequest) returns (Cbu);
+  rpc ListCbus (ListCbusRequest) returns (CbuList);
+  rpc CreateCbu (CreateCbuRequest) returns (CbuResponse);
+  rpc GetCbuRoles (GetCbuRolesRequest) returns (CbuRoleList);
+  rpc AssignCbuRole (AssignCbuRoleRequest) returns (CbuRoleResponse);
+
+  // Attribute operations
+  rpc GetAttribute (GetAttributeRequest) returns (Attribute);
+  rpc ListAttributes (ListAttributesRequest) returns (AttributeList);
+  rpc SearchAttributes (SearchRequest) returns (AttributeList);
+
+  // Concept operations
+  rpc GetConcept (GetConceptRequest) returns (Concept);
+  rpc ListConcepts (ListConceptsRequest) returns (ConceptList);
+  rpc SearchConcepts (SearchRequest) returns (ConceptList);
+
+  // Regulation & Document operations
+  rpc GetRegulation (GetRegulationRequest) returns (Regulation);
+  rpc ListRegulations (ListRegulationsRequest) returns (RegulationList);
+  rpc GetDocument (GetDocumentRequest) returns (Document);
+  rpc ListDocuments (ListDocumentsRequest) returns (DocumentList);
+
+  // Control graph operations
+  rpc GetEntityControlGraph (GetEntityControlRequest) returns (EntityControlGraph);
+  rpc CreateControl (CreateControlRequest) returns (ControlResponse);
+  rpc GetControlChain (GetControlChainRequest) returns (ControlChain);
+
+  // KYC Profile operations
+  rpc GetKycProfile (GetKycProfileRequest) returns (KycProfile);
+  rpc UpdateKycProfile (UpdateKycProfileRequest) returns (KycProfileResponse);
+}
+
+// ============================================================================
+// Core Entity Messages
+// ============================================================================
+
+message Entity {
+  string id = 1;
+  string name = 2;
+  string entity_type = 3;               // COMPANY, FUND, PERSON, PARTNERSHIP, TRUST
+  string legal_form = 4;                // LLC, PLC, LP, etc.
+  string jurisdiction = 5;
+  string registration_number = 6;
+  string lei_code = 7;
+  string incorporation_date = 8;        // ISO 8601 date string
+  string dissolution_date = 9;
+  string status = 10;                   // ACTIVE, INACTIVE, DISSOLVED
+  string description = 11;
+  string metadata = 12;                 // JSON string
+  string created_at = 13;
+  string updated_at = 14;
+}
+
+message EntityList {
+  repeated Entity entities = 1;
+  int32 total_count = 2;
+}
+
+message EntityResponse {
+  bool success = 1;
+  string error = 2;
+  string entity_id = 3;
+}
+
+// ============================================================================
+// CBU (Client Business Unit) Messages
+// ============================================================================
+
+message Cbu {
+  string id = 1;
+  string name = 2;
+  string code = 3;                      // Unique identifier code
+  string sponsor_entity_id = 4;
+  string domicile = 5;
+  string description = 6;
+  string status = 7;
+  string metadata = 8;                  // JSON string
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message CbuList {
+  repeated Cbu cbus = 1;
+  int32 total_count = 2;
+}
+
+message CbuResponse {
+  bool success = 1;
+  string error = 2;
+  string cbu_id = 3;
+}
+
+message RoleType {
+  int32 id = 1;
+  string code = 2;                      // MANCO, FUND, DEPOSITARY, etc.
+  string name = 3;
+  string description = 4;
+  string category = 5;
+}
+
+message CbuRole {
+  string id = 1;
+  string cbu_id = 2;
+  string entity_id = 3;
+  RoleType role_type = 4;
+  string start_date = 5;
+  string end_date = 6;
+  string jurisdiction = 7;
+  bool is_primary = 8;
+  string status = 9;
+  string metadata = 10;                 // JSON string
+}
+
+message CbuRoleList {
+  repeated CbuRole roles = 1;
+  int32 total_count = 2;
+}
+
+message CbuRoleResponse {
+  bool success = 1;
+  string error = 2;
+  string role_id = 3;
+}
+
+// ============================================================================
+// Control & Ownership Messages
+// ============================================================================
+
+message EntityControl {
+  string id = 1;
+  string controller_entity_id = 2;
+  string controlled_entity_id = 3;
+  string control_type = 4;              // LEGAL_OWNERSHIP, BENEFICIAL_OWNERSHIP, etc.
+  string control_basis = 5;
+  double control_percentage = 6;
+  double effective_percentage = 7;
+  string start_date = 8;
+  string end_date = 9;
+  bool is_indirect = 10;
+  string indirect_via_entity_id = 11;
+  string remarks = 12;
+  string source_document = 13;
+  string verified_at = 14;
+  string verified_by = 15;
+}
+
+message EntityControlGraph {
+  repeated EntityControl edges = 1;
+  repeated Entity nodes = 2;            // All entities in the graph
+  int32 total_edges = 3;
+}
+
+message ControlChain {
+  repeated EntityControl chain = 1;     // Ordered list from ultimate controller to target
+  double total_effective_percentage = 2;
+}
+
+message ControlResponse {
+  bool success = 1;
+  string error = 2;
+  string control_id = 3;
+}
+
+// ============================================================================
+// KYC Profile Messages
+// ============================================================================
+
+message KycProfile {
+  string entity_id = 1;
+  string risk_rating = 2;               // LOW, MEDIUM, HIGH, CRITICAL
+  string kyc_status = 3;                // PENDING, IN_PROGRESS, APPROVED, REJECTED
+  string last_review_date = 4;
+  string next_review_date = 5;
+  string policy_id = 6;
+  string kyc_token = 7;
+  string sanctions_check_status = 8;
+  bool pep_status = 9;
+  string adverse_media_status = 10;
+  string remarks = 11;
+  string metadata = 12;                 // JSON string
+}
+
+message KycProfileResponse {
+  bool success = 1;
+  string error = 2;
+  string entity_id = 3;
+}
+
+// ============================================================================
+// Dictionary Messages (Regulations, Documents, Concepts, Attributes)
+// ============================================================================
+
+message Regulation {
+  string id = 1;
+  string code = 2;                      // FATCA, CRS, AMLD5, etc.
+  string name = 3;
+  string jurisdiction = 4;
+  string authority = 5;
+  string effective_date = 6;
+  string description = 7;
+  string url = 8;
+  string status = 9;
+  string metadata = 10;                 // JSON string
+}
+
+message RegulationList {
+  repeated Regulation regulations = 1;
+  int32 total_count = 2;
+}
+
+message Document {
+  string id = 1;
+  string code = 2;                      // DOC_PASSPORT, DOC_W9, etc.
+  string title = 3;
+  string jurisdiction = 4;
+  string category = 5;                  // IDENTITY, TAX, ADDRESS, etc.
+  string description = 6;
+  string url = 7;
+  string regulation_id = 8;
+  int32 validity_period_days = 9;
+  bool is_mandatory = 10;
+  string metadata = 11;                 // JSON string
+}
+
+message DocumentList {
+  repeated Document documents = 1;
+  int32 total_count = 2;
+}
+
+message Concept {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  string description = 4;
+  string domain = 5;                    // ENTITY, CONTROL, POLICY, DOCUMENT, RISK
+  string parent_concept_id = 6;
+  repeated string synonyms = 7;
+  string metadata = 8;                  // JSON string
+}
+
+message ConceptList {
+  repeated Concept concepts = 1;
+  int32 total_count = 2;
+}
+
+message Attribute {
+  string id = 1;
+  string code = 2;                      // UBO_NAME, CLIENT_LEI, etc.
+  string name = 3;
+  string description = 4;
+  string attr_type = 5;                 // string, number, date, boolean, json
+  string jurisdiction = 6;
+  string regulation_id = 7;
+  string concept_id = 8;
+  string sink_table = 9;
+  string sink_column = 10;
+  string source_priority = 11;          // JSON string
+  string validation_rules = 12;         // JSON string
+  bool is_pii = 13;
+  bool is_required = 14;
+  string metadata = 15;                 // JSON string
+}
+
+message AttributeList {
+  repeated Attribute attributes = 1;
+  int32 total_count = 2;
+}
+
+// ============================================================================
+// Request Messages
+// ============================================================================
+
+// Entity Requests
+message GetEntityRequest {
+  string id = 1;
+}
+
+message ListEntitiesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string entity_type = 3;               // Optional filter
+  string jurisdiction = 4;              // Optional filter
+  string status = 5;                    // Optional filter
+}
+
+message CreateEntityRequest {
+  string name = 1;
+  string entity_type = 2;
+  string legal_form = 3;
+  string jurisdiction = 4;
+  string registration_number = 5;
+  string lei_code = 6;
+  string incorporation_date = 7;
+  string description = 8;
+  string metadata = 9;                  // JSON string
+}
+
+message UpdateEntityRequest {
+  string id = 1;
+  string name = 2;
+  string status = 3;
+  string description = 4;
+  string metadata = 5;                  // JSON string
+}
+
+// CBU Requests
+message GetCbuRequest {
+  string id = 1;
+}
+
+message ListCbusRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string domicile = 3;                  // Optional filter
+  string status = 4;                    // Optional filter
+}
+
+message CreateCbuRequest {
+  string name = 1;
+  string code = 2;
+  string sponsor_entity_id = 3;
+  string domicile = 4;
+  string description = 5;
+  string metadata = 6;                  // JSON string
+}
+
+message GetCbuRolesRequest {
+  string cbu_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message AssignCbuRoleRequest {
+  string cbu_id = 1;
+  string entity_id = 2;
+  int32 role_type_id = 3;
+  string start_date = 4;
+  string jurisdiction = 5;
+  bool is_primary = 6;
+  string metadata = 7;                  // JSON string
+}
+
+// Control Requests
+message GetEntityControlRequest {
+  string entity_id = 1;
+  bool include_indirect = 2;            // Include indirect control relationships
+  int32 max_depth = 3;                  // Maximum depth for graph traversal
+}
+
+message CreateControlRequest {
+  string controller_entity_id = 1;
+  string controlled_entity_id = 2;
+  string control_type = 3;
+  string control_basis = 4;
+  double control_percentage = 5;
+  string start_date = 6;
+  bool is_indirect = 7;
+  string indirect_via_entity_id = 8;
+  string remarks = 9;
+  string source_document = 10;
+}
+
+message GetControlChainRequest {
+  string start_entity_id = 1;
+  string end_entity_id = 2;
+  string control_type = 3;              // Optional filter
+}
+
+// KYC Profile Requests
+message GetKycProfileRequest {
+  string entity_id = 1;
+}
+
+message UpdateKycProfileRequest {
+  string entity_id = 1;
+  string risk_rating = 2;
+  string kyc_status = 3;
+  string last_review_date = 4;
+  string next_review_date = 5;
+  string policy_id = 6;
+  string kyc_token = 7;
+  bool pep_status = 8;
+  string remarks = 9;
+  string metadata = 10;                 // JSON string
+}
+
+// Dictionary Requests
+message GetAttributeRequest {
+  string id = 1;
+}
+
+message ListAttributesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string jurisdiction = 3;              // Optional filter
+  string attr_type = 4;                 // Optional filter
+  bool is_required = 5;                 // Optional filter
+}
+
+message GetConceptRequest {
+  string id = 1;
+}
+
+message ListConceptsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string domain = 3;                    // Optional filter
+}
+
+message GetRegulationRequest {
+  string id = 1;
+}
+
+message ListRegulationsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string jurisdiction = 3;              // Optional filter
+  string status = 4;                    // Optional filter
+}
+
+message GetDocumentRequest {
+  string id = 1;
+}
+
+message ListDocumentsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string jurisdiction = 3;              // Optional filter
+  string category = 4;                  // Optional filter
+  bool is_mandatory = 5;                // Optional filter
+}
+
+// Search Request (unified for semantic search)
+message SearchRequest {
+  string query = 1;                     // Search query text
+  int32 limit = 2;
+  int32 offset = 3;
+  string domain = 4;                    // Optional domain filter
+  double similarity_threshold = 5;      // Minimum similarity score (0.0-1.0)
+}

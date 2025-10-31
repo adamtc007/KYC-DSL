@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package kyc.data;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb/kycdata";
+option java_multiple_files = true;
+
+// ----------------------
+// Dictionary Service
+// ----------------------
+service DictionaryService {
+  rpc GetAttribute(GetAttributeRequest) returns (Attribute);
+  rpc ListAttributes(ListAttributesRequest) returns (AttributeList);
+  rpc GetDocument(GetDocumentRequest) returns (Document);
+  rpc ListDocuments(ListDocumentsRequest) returns (DocumentList);
+}
+
+// ----------------------
+// Case Service
+// ----------------------
+service CaseService {
+  rpc SaveCaseVersion(CaseVersionRequest) returns (CaseVersionResponse);
+  rpc GetCaseVersion(GetCaseRequest) returns (CaseVersion);
+  rpc ListCaseVersions(ListCaseVersionsRequest) returns (CaseVersionList);
+}
+
+// ----------------------
+// Messages - Attributes
+// ----------------------
+message Attribute {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string attr_type = 4;
+  string jurisdiction = 5;
+  string regulation = 6;
+}
+
+message GetAttributeRequest {
+  string id = 1;
+}
+
+message ListAttributesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message AttributeList {
+  repeated Attribute attributes = 1;
+  int32 total_count = 2;
+}
+
+// ----------------------
+// Messages - Documents
+// ----------------------
+message Document {
+  string id = 1;
+  string title = 2;
+  string jurisdiction = 3;
+  string category = 4;
+  string description = 5;
+  string url = 6;
+}
+
+message GetDocumentRequest {
+  string id = 1;
+}
+
+message ListDocumentsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string jurisdiction = 3;  // optional filter
+}
+
+message DocumentList {
+  repeated Document documents = 1;
+  int32 total_count = 2;
+}
+
+// ----------------------
+// Messages - Cases
+// ----------------------
+message CaseVersion {
+  string id = 1;
+  string case_id = 2;
+  string dsl_source = 3;
+  string compiled_json = 4;
+  string status = 5;
+  string created_at = 6;
+}
+
+message CaseVersionRequest {
+  string case_id = 1;
+  string dsl_source = 2;
+  string compiled_json = 3;
+  string status = 4;
+}
+
+message CaseVersionResponse {
+  bool success = 1;
+  string error = 2;
+  string version_id = 3;
+}
+
+message GetCaseRequest {
+  string case_id = 1;
+}
+
+message ListCaseVersionsRequest {
+  string case_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message CaseVersionList {
+  repeated CaseVersion versions = 1;
+  int32 total_count = 2;
+}

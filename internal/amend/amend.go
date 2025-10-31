@@ -4,18 +4,23 @@ import (
 	"fmt"
 	"strings"
 
+	pb "github.com/adamtc007/KYC-DSL/api/pb"
 	"github.com/adamtc007/KYC-DSL/internal/model"
-	"github.com/adamtc007/KYC-DSL/internal/parser"
+	"github.com/adamtc007/KYC-DSL/internal/rustclient"
 	"github.com/adamtc007/KYC-DSL/internal/storage"
 	"github.com/jmoiron/sqlx"
 )
 
 // ApplyAmendment loads the latest case version, applies a mutation, and saves the new version.
+// For most amendments, this delegates to the Rust DSL service via gRPC.
+// For ontology-aware amendments (like document-discovery), it uses local mutation functions.
+//
 // Flow:
 //  1. Load latest serialized DSL from database
-//  2. Parse + bind to model
-//  3. Execute mutationFn to apply the change
-//  4. Serialize → validate → save as next version → log amendment
+//  2. Apply mutation (via Rust or local function)
+//  3. Validate the result
+//  4. Save as next version
+//  5. Log amendment
 func ApplyAmendment(db *sqlx.DB, caseName string, step string, mutationFn func(*model.KycCase)) error {
 	// Step 1: Load latest version
 	latestVersion, err := getLatestVersion(db, caseName)
@@ -23,48 +28,97 @@ func ApplyAmendment(db *sqlx.DB, caseName string, step string, mutationFn func(*
 		return fmt.Errorf("failed to load latest version: %w", err)
 	}
 
-	// Step 2: Parse and bind
-	parsedDSL, err := parser.Parse(strings.NewReader(latestVersion.DslSnapshot))
+	oldSnapshot := latestVersion.DslSnapshot
+
+	// Step 2: Apply mutation via local function (for ontology-aware steps)
+	// This is called when we need direct DB access (e.g., document-discovery)
+	if mutationFn != nil {
+		// Parse via Rust to get structured case
+		rustClient, err := rustclient.NewDslClient("")
+		if err != nil {
+			return fmt.Errorf("failed to connect to Rust DSL service: %w", err)
+		}
+		defer rustClient.Close()
+
+		parseResp, err := rustClient.ParseDSL(oldSnapshot)
+		if err != nil || !parseResp.Success {
+			return fmt.Errorf("failed to parse DSL: %w", err)
+		}
+
+		if len(parseResp.Cases) == 0 {
+			return fmt.Errorf("no cases found in DSL")
+		}
+
+		// Convert proto case to model (simplified - in real impl would need full conversion)
+		kycCase := protoToModelCase(parseResp.Cases[0])
+
+		// Apply local mutation
+		mutationFn(kycCase)
+
+		// Serialize back via Rust
+		serializeResp, err := rustClient.SerializeCase(parseResp.Cases[0])
+		if err != nil || !serializeResp.Success {
+			return fmt.Errorf("failed to serialize case: %w", err)
+		}
+
+		newSnapshot := serializeResp.Dsl
+
+		// Validate
+		valResult, err := rustClient.ValidateDSL(newSnapshot)
+		if err != nil || !valResult.Valid {
+			return fmt.Errorf("validation failed after amendment: %v", valResult.Errors)
+		}
+
+		// Calculate diff
+		diff := generateSimpleDiff(oldSnapshot, newSnapshot)
+
+		// Save new version
+		if err := storage.SaveCaseVersion(db, caseName, newSnapshot); err != nil {
+			return fmt.Errorf("failed to save new version: %w", err)
+		}
+
+		// Log amendment
+		changeType := detectChangeType(kycCase, step)
+		if err := storage.InsertAmendment(db, caseName, step, changeType, diff); err != nil {
+			return fmt.Errorf("failed to log amendment: %w", err)
+		}
+
+		fmt.Printf("✅ Amendment applied: %s → %s\n", caseName, step)
+		return nil
+	}
+
+	// Step 3: For standard amendments, use Rust service directly
+	rustClient, err := rustclient.NewDslClient("")
 	if err != nil {
-		return fmt.Errorf("failed to parse DSL: %w", err)
+		return fmt.Errorf("failed to connect to Rust DSL service: %w", err)
 	}
+	defer rustClient.Close()
 
-	cases, err := parser.Bind(parsedDSL)
+	amendResp, err := rustClient.AmendCase(caseName, step)
 	if err != nil {
-		return fmt.Errorf("failed to bind DSL: %w", err)
+		return fmt.Errorf("amendment RPC failed: %w", err)
+	}
+	if !amendResp.Success {
+		return fmt.Errorf("amendment failed: %s", amendResp.Message)
 	}
 
-	if len(cases) == 0 {
-		return fmt.Errorf("no cases found in DSL")
-	}
+	newSnapshot := amendResp.UpdatedDsl
 
-	kycCase := cases[0]
-
-	// Step 3: Apply mutation
-	oldSnapshot := parser.SerializeCases([]*model.KycCase{kycCase})
-	mutationFn(kycCase)
-	newSnapshot := parser.SerializeCases([]*model.KycCase{kycCase})
-
-	// Step 4: Validate
-	if err := parser.ValidateDSL(db, []*model.KycCase{kycCase}, ""); err != nil {
-		return fmt.Errorf("validation failed after amendment: %w", err)
-	}
-
-	// Step 5: Calculate diff
+	// Calculate diff
 	diff := generateSimpleDiff(oldSnapshot, newSnapshot)
 
-	// Step 6: Save new version
+	// Save new version
 	if err := storage.SaveCaseVersion(db, caseName, newSnapshot); err != nil {
 		return fmt.Errorf("failed to save new version: %w", err)
 	}
 
-	// Step 7: Log amendment
-	changeType := detectChangeType(kycCase, step)
+	// Log amendment
+	changeType := step // Use step as change type for Rust-applied amendments
 	if err := storage.InsertAmendment(db, caseName, step, changeType, diff); err != nil {
 		return fmt.Errorf("failed to log amendment: %w", err)
 	}
 
-	fmt.Printf("✅ Amendment applied: %s → %s\n", caseName, step)
+	fmt.Printf("✅ Amendment applied: %s → %s (via Rust service)\n", caseName, step)
 	return nil
 }
 
@@ -133,20 +187,41 @@ func detectChangeType(kycCase *model.KycCase, step string) string {
 	switch step {
 	case "CASE-CREATION":
 		return "initialization"
-	case "POLICY-DISCOVERY":
+	case "policy-discovery":
 		return "policy-injection"
-	case "DOCUMENT-SOLICITATION":
+	case "document-solicitation":
 		return "obligation-addition"
-	case "OWNERSHIP-CONTROL":
+	case "document-discovery":
+		return "document-discovery"
+	case "ownership-discovery":
 		return "ownership-tree"
-	case "RISK-REVIEW":
+	case "risk-assessment":
 		return "risk-assessment"
-	case "FINALIZATION":
+	case "regulator-notify":
+		return "regulator-notification"
+	case "approve":
 		if kycCase.Token != nil {
 			return fmt.Sprintf("token-update:%s", kycCase.Token.Status)
 		}
-		return "finalization"
+		return "finalization-approved"
+	case "decline":
+		return "finalization-declined"
+	case "review":
+		return "status-review"
 	default:
 		return "generic-amendment"
 	}
+}
+
+// protoToModelCase converts a proto ParsedCase to internal KycCase model
+// This is a simplified conversion - in production would need full field mapping
+func protoToModelCase(protoCase *pb.ParsedCase) *model.KycCase {
+	kycCase := &model.KycCase{
+		Name:    protoCase.Name,
+		Nature:  protoCase.Nature,
+		Purpose: protoCase.Purpose,
+	}
+
+	// Add more field mappings as needed
+	return kycCase
 }

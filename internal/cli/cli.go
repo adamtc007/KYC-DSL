@@ -3,18 +3,32 @@ package cli
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
+	pb "github.com/adamtc007/KYC-DSL/api/pb"
 	"github.com/adamtc007/KYC-DSL/internal/amend"
-	"github.com/adamtc007/KYC-DSL/internal/engine"
 	"github.com/adamtc007/KYC-DSL/internal/model"
 	"github.com/adamtc007/KYC-DSL/internal/ontology"
-	"github.com/adamtc007/KYC-DSL/internal/parser"
+	"github.com/adamtc007/KYC-DSL/internal/rustclient"
 	"github.com/adamtc007/KYC-DSL/internal/storage"
 )
 
 // RunGrammarCommand stores the current grammar definition in the database.
 func RunGrammarCommand() error {
+	// Connect to Rust DSL service to get grammar
+	rustClient, err := rustclient.NewDslClient("")
+	if err != nil {
+		return fmt.Errorf("failed to connect to Rust DSL service: %w", err)
+	}
+	defer rustClient.Close()
+
+	grammarResp, err := rustClient.GetGrammar()
+	if err != nil {
+		return fmt.Errorf("failed to get grammar from Rust service: %w", err)
+	}
+
+	// Connect to database
 	db, err := storage.ConnectPostgres()
 	if err != nil {
 		return fmt.Errorf("database connection failed: %w", err)
@@ -25,31 +39,57 @@ func RunGrammarCommand() error {
 		}
 	}()
 
-	ebnf := parser.CurrentGrammarEBNF()
-	err = storage.InsertGrammar(db, "KYC-DSL", "1.1", ebnf)
+	// Store grammar in database
+	err = storage.InsertGrammar(db, "KYC-DSL", grammarResp.Version, grammarResp.Ebnf)
 	if err != nil {
 		return fmt.Errorf("insert grammar failed: %w", err)
 	}
 
-	fmt.Println("✅ Grammar inserted into Postgres.")
+	fmt.Printf("✅ Grammar (v%s) inserted into Postgres via Rust service.\n", grammarResp.Version)
 	return nil
 }
 
-// RunProcessCommand parses, validates, and persists a DSL file.
+// RunProcessCommand parses, validates, and persists a DSL file via Rust service.
 func RunProcessCommand(filePath string) error {
-	// Parse DSL file
-	dsl, err := parser.ParseFile(filePath)
+	// Read DSL file
+	dslContent, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Connect to Rust DSL service
+	rustClient, err := rustclient.NewDslClient("")
+	if err != nil {
+		return fmt.Errorf("failed to connect to Rust DSL service: %w", err)
+	}
+	defer rustClient.Close()
+
+	dslText := string(dslContent)
+
+	// Parse via Rust
+	parseResp, err := rustClient.ParseDSL(dslText)
 	if err != nil {
 		return fmt.Errorf("parse error: %w", err)
 	}
-
-	// Bind to typed models
-	cases, err := parser.Bind(dsl)
-	if err != nil {
-		return fmt.Errorf("bind error: %w", err)
+	if !parseResp.Success {
+		return fmt.Errorf("parse failed: %s (errors: %v)", parseResp.Message, parseResp.Errors)
 	}
 
-	// Connect to database
+	if len(parseResp.Cases) == 0 {
+		return fmt.Errorf("no cases found in DSL")
+	}
+
+	// Validate via Rust
+	valResult, err := rustClient.ValidateDSL(dslText)
+	if err != nil {
+		return fmt.Errorf("validation error: %w", err)
+	}
+	if !valResult.Valid {
+		return fmt.Errorf("❌ DSL validation failed: %v", valResult.Errors)
+	}
+	fmt.Println("✅ DSL validated successfully (grammar + semantics) via Rust service.")
+
+	// Connect to database for persistence
 	db, err := storage.ConnectPostgres()
 	if err != nil {
 		return fmt.Errorf("database error: %w", err)
@@ -60,26 +100,16 @@ func RunProcessCommand(filePath string) error {
 		}
 	}()
 
-	// Validate against grammar and semantics
-	ebnf, _ := storage.GetGrammar(db, "KYC-DSL")
-	if err := parser.ValidateDSL(db, cases, ebnf); err != nil {
-		return fmt.Errorf("❌ DSL validation failed: %w", err)
-	}
-	fmt.Println("✅ DSL validated successfully (grammar + semantics).")
+	// Extract case information
+	caseName := parseResp.Cases[0].Name
+	displayParsedCaseInfo(parseResp.Cases[0])
 
-	// Serialize the typed model back into DSL text
-	serialized := parser.SerializeCases(cases)
-
-	// Display parsed case information
-	displayCaseInfo(cases[0])
-
-	// Execute and persist
-	exec := engine.NewExecutor(db)
-	if err := exec.RunCase(cases[0].Name, serialized); err != nil {
-		return fmt.Errorf("execution failed: %w", err)
+	// Save to database
+	if err := storage.SaveCaseVersion(db, caseName, dslText); err != nil {
+		return fmt.Errorf("failed to save case: %w", err)
 	}
 
-	fmt.Printf("\n🧾 DSL snapshot stored and versioned successfully (case: %s)\n", cases[0].Name)
+	fmt.Printf("\n🧾 DSL snapshot stored and versioned successfully (case: %s)\n", caseName)
 	return nil
 }
 
@@ -101,30 +131,27 @@ func RunValidateCommand(caseName, actor string) error {
 		return fmt.Errorf("failed to load case: %w", err)
 	}
 
-	// Parse and bind
-	tree, err := parser.Parse(strings.NewReader(dsl))
+	// Connect to Rust DSL service
+	rustClient, err := rustclient.NewDslClient("")
 	if err != nil {
-		return fmt.Errorf("parse error: %w", err)
+		return fmt.Errorf("failed to connect to Rust DSL service: %w", err)
 	}
-	cases, err := parser.Bind(tree)
-	if err != nil {
-		return fmt.Errorf("bind error: %w", err)
-	}
-	if len(cases) == 0 {
-		return fmt.Errorf("no case found")
-	}
-	c := cases[0]
+	defer rustClient.Close()
 
-	// Validate with audit trail
-	if err := parser.ValidateCaseWithAudit(db, c, actor); err != nil {
-		return fmt.Errorf("validation failed: %w", err)
+	// Validate via Rust
+	valResult, err := rustClient.ValidateDSL(dsl)
+	if err != nil {
+		return fmt.Errorf("validation error: %w", err)
+	}
+	if !valResult.Valid {
+		return fmt.Errorf("validation failed: %v", valResult.Errors)
 	}
 
-	fmt.Printf("✅ Case %s validated and audit logged.\n", caseName)
+	fmt.Printf("✅ Case %s validated via Rust service.\n", caseName)
 	return nil
 }
 
-// RunAmendCommand applies an incremental amendment to an existing case.
+// RunAmendCommand applies an incremental amendment to an existing case via Rust service.
 func RunAmendCommand(caseName, step string) error {
 	db, err := storage.ConnectPostgres()
 	if err != nil {
@@ -136,46 +163,49 @@ func RunAmendCommand(caseName, step string) error {
 		}
 	}()
 
-	// Map step names to mutation functions
-	var mutation func(*model.KycCase)
-
-	// Special handling for ontology-aware amendments
+	// Special handling for ontology-aware amendments that need DB access
 	if step == "document-discovery" {
+		// This one needs the ontology repo, so use the existing amend package
 		repo := ontology.NewRepository(db)
-		mutation = func(c *model.KycCase) {
+		mutation := func(c *model.KycCase) {
 			if err := amend.AddDocumentDiscovery(c, repo); err != nil {
 				log.Printf("Error in document discovery: %v", err)
 			}
 		}
-	} else {
-		switch step {
-		case "policy-discovery":
-			mutation = amend.AddPolicyDiscovery
-		case "document-solicitation":
-			mutation = amend.AddDocumentSolicitation
-		case "ownership-discovery":
-			mutation = amend.AddOwnershipStructure
-		case "risk-assessment":
-			mutation = amend.AddRiskAssessment
-		case "regulator-notify":
-			mutation = amend.AddRegulatorNotification
-		case "approve":
-			mutation = amend.ApproveCase
-		case "decline":
-			mutation = amend.DeclineCase
-		case "review":
-			mutation = amend.RequestReviewCase
-		default:
-			return fmt.Errorf("unknown amendment step: %s", step)
+		if err := amend.ApplyAmendment(db, caseName, step, mutation); err != nil {
+			return fmt.Errorf("amendment failed: %w", err)
 		}
+		fmt.Printf("✅ Amendment '%s' applied successfully to case %s\n", step, caseName)
+		return nil
 	}
 
-	// Apply the amendment
-	if err := amend.ApplyAmendment(db, caseName, step, mutation); err != nil {
-		return fmt.Errorf("amendment failed: %w", err)
+	// For all other amendments, use Rust service
+	rustClient, err := rustclient.NewDslClient("")
+	if err != nil {
+		return fmt.Errorf("failed to connect to Rust DSL service: %w", err)
+	}
+	defer rustClient.Close()
+
+	// Apply amendment via Rust
+	amendResp, err := rustClient.AmendCase(caseName, step)
+	if err != nil {
+		return fmt.Errorf("amendment RPC failed: %w", err)
+	}
+	if !amendResp.Success {
+		return fmt.Errorf("amendment failed: %s", amendResp.Message)
 	}
 
-	fmt.Printf("✅ Amendment '%s' applied successfully to case %s\n", step, caseName)
+	// Save new version to database
+	if err := storage.SaveCaseVersion(db, caseName, amendResp.UpdatedDsl); err != nil {
+		return fmt.Errorf("failed to save amended version: %w", err)
+	}
+
+	// Log amendment
+	if err := storage.InsertAmendment(db, caseName, step, "rust-applied", amendResp.Message); err != nil {
+		log.Printf("Warning: failed to log amendment: %v", err)
+	}
+
+	fmt.Printf("✅ Amendment '%s' applied successfully to case %s (via Rust service)\n", step, caseName)
 	return nil
 }
 
@@ -199,26 +229,31 @@ func RunOntologyCommand() error {
 	return nil
 }
 
-// displayCaseInfo prints a summary of the parsed case.
-func displayCaseInfo(c *model.KycCase) {
+// displayParsedCaseInfo prints a summary of the parsed case from Rust service.
+func displayParsedCaseInfo(c *pb.ParsedCase) {
 	fmt.Println("✅ Parsed DSL case:", c.Name)
-	fmt.Printf("   Nature: %s\n", c.Nature)
-	fmt.Printf("   Purpose: %s\n", c.Purpose)
-	fmt.Printf("   CBU: %s\n", c.CBU.Name)
-	fmt.Printf("   Functions: %v\n", getFunctionNames(c))
-}
-
-// getFunctionNames extracts function action names from a case.
-func getFunctionNames(c *model.KycCase) []string {
-	names := []string{}
-	for _, f := range c.Functions {
-		names = append(names, f.Action)
+	if c.Nature != "" {
+		fmt.Printf("   Nature: %s\n", c.Nature)
 	}
-	return names
+	if c.Purpose != "" {
+		fmt.Printf("   Purpose: %s\n", c.Purpose)
+	}
+	if c.ClientBusinessUnit != "" {
+		fmt.Printf("   CBU: %s\n", c.ClientBusinessUnit)
+	}
+	if c.Function != "" {
+		fmt.Printf("   Function: %s\n", c.Function)
+	}
+	if c.Policy != "" {
+		fmt.Printf("   Policy: %s\n", c.Policy)
+	}
 }
 
 // ShowUsage displays usage information.
 func ShowUsage() {
+	fmt.Println("KYC-DSL Command Line Tool (Rust-powered)")
+	fmt.Println("========================================")
+	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  kycctl grammar                          - Store grammar definition in database")
 	fmt.Println("  kycctl ontology                         - Display regulatory data ontology")
@@ -253,6 +288,14 @@ func ShowUsage() {
 	fmt.Println("  approve                 - Finalize case as approved")
 	fmt.Println("  decline                 - Finalize case as declined")
 	fmt.Println("  review                  - Set case to review status")
+	fmt.Println()
+	fmt.Println("Environment Variables:")
+	fmt.Println("  RUST_DSL_SERVICE_ADDR   - Rust DSL service address (default: localhost:50060)")
+	fmt.Println("  PGHOST                  - PostgreSQL host (default: localhost)")
+	fmt.Println("  PGPORT                  - PostgreSQL port (default: 5432)")
+	fmt.Println("  PGUSER                  - PostgreSQL user")
+	fmt.Println("  PGDATABASE              - PostgreSQL database (default: kyc_dsl)")
+	fmt.Println("  OPENAI_API_KEY          - OpenAI API key (required for RAG features)")
 }
 
 // Run is the main CLI entry point that routes commands.
