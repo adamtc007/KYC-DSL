@@ -62,3 +62,4 @@ rust/**/target/
 # Rust test artifacts
 rust/**/*.profraw
 rust/**/*.profdata
+*.zip
