@@ -30,12 +30,7 @@ git ls-files | while read -r file; do
     fi
 done
 
-echo "📦 Files included in zip:"
-git ls-files | while read -r file; do
-    if [[ -f "$file" ]]; then
-        echo "  ✅ $file"
-    fi
-done
+# File listing removed for cleaner output
 
 # Store current directory
 CURRENT_DIR="$(pwd)"

@@ -4,212 +4,173 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KYC-DSL is a **dual-codebase system** with both Go and Rust implementations sharing Protocol Buffer definitions. The system processes Domain Specific Language (DSL) files for Know Your Customer (KYC) compliance cases, with PostgreSQL persistence, full version control, and semantic search capabilities.
+KYC-DSL is a **Domain Specific Language (DSL) processing system** for Know Your Customer (KYC) compliance cases. The system uses Rust for high-performance DSL parsing and execution, with Go providing data access, ontology management, and RAG capabilities.
 
-**Current Version**: 1.5  
-**Architecture**: Go (primary) + Rust (high-performance alternative) + Shared gRPC/Protobuf API  
+**Current Version**: 2.0  
+**Architecture**: Rust (computation) + Go (data) + Shared gRPC/Protobuf API  
 **Key Features**: DSL parsing, regulatory ontology, ownership tracking, amendments, RAG vector search, feedback loop learning
 
-## Quick Architecture
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    CLI (kycctl)                         │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           │ gRPC
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│          Rust DSL Service (Port 50060)                  │
+│  - Parse DSL (nom-based S-expression parser)            │
+│  - Validate DSL (grammar + semantics)                   │
+│  - Execute Functions                                    │
+│  - Serialize Cases                                      │
+│  - Apply Amendments                                     │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           │ (persistence)
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│          Go Data Service (Port 50070)                   │
+│  - PostgreSQL Access (pgx/sqlx)                         │
+│  - Dictionary Service (attributes/documents)            │
+│  - Case Version Control (SHA-256 hashing)              │
+│  - Ontology Repository (regulations/mappings)          │
+│  - RAG/Vector Search (OpenAI + pgvector)               │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │  PostgreSQL  │
+                    │  + pgvector  │
+                    └──────────────┘
+```
+
+**Key Principle:** Rust owns computation, Go owns data.
+
+## Project Structure
 
 ```
 KYC-DSL/
-├── Go Stack (Primary - Production Ready)
-│   ├── cmd/kycctl/          CLI tool
-│   ├── cmd/kycserver/       REST API (port 8080)
-│   ├── cmd/server/          gRPC server (port 50051)
-│   ├── cmd/dataserver/      Data Service gRPC (port 50070) ★ NEW
-│   └── internal/            Parser, storage, ontology, RAG
-│       └── dataservice/     Centralized database layer ★ NEW
-│
-├── Rust Stack (High-Performance Alternative)
-│   ├── kyc_dsl_core/        Core engine library
+├── Rust Stack (Computation Layer)
+│   ├── kyc_dsl_core/        Core DSL engine library
+│   │   ├── parser.rs        nom-based S-expression parser
+│   │   ├── compiler.rs      AST → instruction compilation
+│   │   └── executor.rs      Execution engine
 │   └── kyc_dsl_service/     gRPC service (port 50060)
+│       └── main.rs          DslService implementation
+│
+├── Go Stack (Data Layer)
+│   ├── cmd/
+│   │   ├── kycctl/          CLI tool (uses Rust service)
+│   │   ├── kycserver/       REST API server (port 8080)
+│   │   └── dataserver/      Data Service gRPC (port 50070)
+│   └── internal/
+│       ├── rustclient/      Rust gRPC client wrapper ★
+│       ├── cli/             CLI command handlers
+│       ├── amend/           Amendment system
+│       ├── storage/         PostgreSQL operations (pgx/sqlx)
+│       ├── dataservice/     Data service implementation
+│       ├── ontology/        Ontology repository
+│       ├── rag/             OpenAI embeddings + vector search
+│       ├── model/           Data models
+│       └── api/             REST API handlers
 │
 ├── Shared Layer
 │   ├── api/proto/           Protobuf definitions
-│   │   ├── dsl_service.proto
-│   │   ├── kyc_case.proto
-│   │   ├── rag_service.proto
-│   │   └── cbu_graph.proto
-│   └── proto_shared/        Shared Go/Rust protos ★ NEW
-│       └── data_service.proto   Dictionary + Case services
+│   │   ├── dsl_service.proto      Rust DSL service API
+│   │   ├── kyc_case.proto         Case data structures
+│   │   ├── rag_service.proto      RAG/search API
+│   │   └── cbu_graph.proto        Business unit graphs
+│   └── proto_shared/        Shared Go/Rust protos
+│       └── data_service.proto     Dictionary + Case services
 │
 └── Database
-    └── PostgreSQL            Version control, ontology, embeddings
+    └── PostgreSQL            21 tables + pgvector extension
 ```
-</thinking>
 
-**Data Service:** Centralized gRPC service (port 50070) that owns all PostgreSQL 
-connections and exposes Dictionary (attributes/documents) and Case (version control) 
-APIs. Used by Go CLI, Rust DSL engine, and UI clients.
+## Service Ports
+
+| Port  | Service            | Purpose                      |
+|-------|--------------------|------------------------------|
+| 50060 | Rust DSL Service   | Parse, validate, execute DSL |
+| 50070 | Go Data Service    | Database access, ontology    |
+| 8080  | REST API           | HTTP gateway (optional)      |
 
 ## Common Development Commands
 
-### Go Stack (Primary)
+### Build & Run
 
-**Build & Run:**
 ```bash
-make build              # Build kycctl CLI
-make run                # Run with sample case
-make run-file FILE=x.dsl # Run specific DSL file
+# Build CLI
+make build              # Creates ./kycctl binary
 make install            # Install to GOPATH/bin
+
+# Run Rust DSL Service
+cd rust
+cargo run -p kyc_dsl_service
+# Listening on [::1]:50060
+
+# Run Data Service
+make run-dataserver     # Port 50070
+
+# Process DSL files
+./kycctl sample_case.dsl
+./kycctl ontology_example.dsl
 ```
 
-**Testing:**
+### Testing
+
 ```bash
-make test               # All tests
-make test-verbose       # Verbose output
-make test-parser        # Parser tests only
-./scripts/test_semantic_search.sh  # RAG tests
-./scripts/test_feedback.sh         # Feedback system tests
+# Run all tests
+make test
+make test-verbose
+
+# Run specific test scripts
+./scripts/test_semantic_search.sh
+./scripts/test_feedback.sh
+./test_ontology_validation.sh
 ```
 
-**Maintenance:**
+### Maintenance
+
 ```bash
 make deps               # Update dependencies
 make fmt                # Format code
 make lint               # Run linter
 make clean              # Clean artifacts
-```
-
-**Data Service (Database Layer):**
-```bash
-make init-dataserver    # Initialize database schema
-make build-dataserver   # Build Data Service
-make run-dataserver     # Run Data Service (port 50070)
-make proto-data         # Regenerate data service protos
-./scripts/test_data_service.sh  # Integration tests
-```
-
-### Rust Stack (Alternative Engine)
-
-**Build & Run:**
-```bash
-make rust-build         # Build Rust workspace
-make rust-service       # Run gRPC service (port 50060)
-make rust-test          # Run Rust tests
-```
-
-**Direct Commands:**
-```bash
-cd rust
-cargo build             # Build workspace
-cargo test              # Run tests
-cargo run -p kyc_dsl_service  # Start service
-./verify.sh             # Verify installation
+go mod tidy             # Clean Go dependencies
 ```
 
 ### Database
 
-**Setup:**
 ```bash
-make docker-up          # Start PostgreSQL (if using Docker)
-./scripts/init_ontology.sh  # Initialize schema + seed data
+# Initialize database
+./scripts/init_ontology.sh
+
+# Environment variables
+export PGHOST=localhost
+export PGPORT=5432
+export PGUSER=youruser
+export PGDATABASE=kyc_dsl
+export OPENAI_API_KEY=sk-...  # Required for RAG
 ```
 
-**Environment Variables:**
-- `PGHOST` (default: localhost)
-- `PGPORT` (default: 5432)
-- `PGUSER` (default: current user)
-- `PGDATABASE` (default: kyc_dsl)
-- `OPENAI_API_KEY` (required for RAG features)
+## CLI Commands
 
-## Go Stack Architecture
-
-### Core Components
-
-**CLI & Servers:**
-- `cmd/kycctl/` - Command-line interface
-- `cmd/kycserver/` - REST API server (port 8080)
-- `cmd/server/` - gRPC server (port 50051)
-
-**Internal Packages:**
-- `internal/cli/` - CLI command routing
-- `internal/parser/` - S-expression DSL parser with validation
-- `internal/engine/` - Case execution engine
-- `internal/storage/` - PostgreSQL layer (sqlx)
-- `internal/model/` - Data models (KycCase, attributes, documents)
-- `internal/ontology/` - Regulatory ontology + metadata repository
-- `internal/amend/` - Amendment system with predefined mutations
-- `internal/rag/` - OpenAI embeddings & vector search
-- `internal/lineage/` - Attribute derivation engine
-- `internal/api/` - HTTP API handlers
-
-### Data Flow
-
-```
-DSL File → Parse → Bind → Validate → Execute → Persist
-              ↓      ↓       ↓         ↓        ↓
-            AST   Model   Grammar   Engine   PostgreSQL
-                         Ontology            (versioned)
-```
-
-### Key Operations
-
-1. **Parse**: `parser.ParseFile()` → S-expression AST
-2. **Bind**: AST → `model.KycCase` (typed structure)
-3. **Validate**: Grammar + semantics + ontology + ownership rules
-4. **Execute**: `engine.RunCase()` processes the case
-5. **Persist**: `storage.InsertCase()` with SHA-256 versioning
-6. **Amend**: `amend.ApplyAmendment()` incremental changes
-
-## Rust Stack Architecture
-
-### Core Components
-
-**kyc_dsl_core (Library):**
-- `parser.rs` - nom-based S-expression parser
-- `compiler.rs` - AST → instruction compilation
-- `executor.rs` - Stateful execution engine
-- Pure Rust, type-safe, no unsafe code
-
-**kyc_dsl_service (gRPC Server):**
-- Wraps `kyc_dsl_core` library
-- Implements `api/proto/dsl_service.proto`
-- Compatible with Go gRPC clients
-- Runs on port **50060**
-
-### Rust API
-
-```rust
-// Compile DSL source to execution plan
-pub fn compile_dsl(src: &str) -> Result<String, DslError>
-
-// Execute compiled plan
-pub fn execute_plan(plan_json: &str) -> Result<String, DslError>
-```
-
-## Shared Protocol Buffers
-
-Both Go and Rust implement the same gRPC services defined in `api/proto/`:
-
-**Services:**
-- `DslService` - DSL parsing, validation, execution
-- `RagService` - Semantic search and feedback
-- `CbuGraphService` - Client Business Unit graph operations
-
-**Message Types:**
-- `KycCase` - Core case structure
-- `ExecuteRequest/Response` - Function execution
-- `SearchRequest/Response` - Vector search
-- `FeedbackRequest` - Learning feedback
-
-## CLI Commands Reference
-
-### Grammar & Ontology
+### DSL Processing
 
 ```bash
-./kycctl grammar        # Store grammar definition
-./kycctl ontology       # Display ontology structure
-```
+# Store grammar definition
+./kycctl grammar
 
-### Process Cases
+# Process DSL files
+./kycctl sample_case.dsl
+./kycctl ontology_example.dsl
+./kycctl ownership_case.dsl
 
-```bash
-./kycctl sample_case.dsl           # Process sample
-./kycctl ontology_example.dsl      # Ontology-aware case
-./kycctl ownership_case.dsl        # Ownership structures
+# Validate existing case
+./kycctl validate CASE-NAME
 ```
 
 ### Amendments (Incremental Updates)
@@ -217,7 +178,7 @@ Both Go and Rust implement the same gRPC services defined in `api/proto/`:
 ```bash
 ./kycctl amend CASE-NAME --step=policy-discovery
 ./kycctl amend CASE-NAME --step=document-solicitation
-./kycctl amend CASE-NAME --step=document-discovery    # Auto-populate from ontology
+./kycctl amend CASE-NAME --step=document-discovery
 ./kycctl amend CASE-NAME --step=ownership-discovery
 ./kycctl amend CASE-NAME --step=risk-assessment
 ./kycctl amend CASE-NAME --step=approve
@@ -228,13 +189,19 @@ Both Go and Rust implement the same gRPC services defined in `api/proto/`:
 ```bash
 # Setup
 export OPENAI_API_KEY="sk-..."
-./kycctl seed-metadata              # Generate embeddings
+./kycctl seed-metadata
 
 # Search
-./kycctl search-metadata "tax compliance"  # Semantic search
-./kycctl similar-attributes UBO_NAME       # Find related attributes
-./kycctl text-search "ownership"           # Keyword search
-./kycctl metadata-stats                    # Repository statistics
+./kycctl search-metadata "tax compliance"
+./kycctl similar-attributes UBO_NAME
+./kycctl text-search "ownership"
+./kycctl metadata-stats
+```
+
+### Ontology
+
+```bash
+./kycctl ontology           # Display ontology structure
 ```
 
 ## DSL Format
@@ -244,8 +211,9 @@ S-expression syntax with ontology-aware extensions:
 ```lisp
 (kyc-case CASE-NAME
   (nature-purpose
-    (nature "...")
-    (purpose "..."))
+    (nature "Investment Fund")
+    (purpose "Global Equity Strategy"))
+  
   (client-business-unit CBU-NAME)
   (policy POLICY-CODE)
   (function ACTION)
@@ -268,8 +236,46 @@ S-expression syntax with ontology-aware extensions:
     (jurisdiction JURISDICTION)
     (required (document CODE "NAME")))
   
-  (kyc-token "status")
+  (kyc-token "approved")
 )
+```
+
+## Rust DSL Service API
+
+The Rust service (port 50060) implements these gRPC RPCs:
+
+```protobuf
+service DslService {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc Validate(ValidateRequest) returns (ValidationResult);
+  rpc Parse(ParseRequest) returns (ParseResponse);
+  rpc Serialize(SerializeRequest) returns (SerializeResponse);
+  rpc Amend(AmendRequest) returns (AmendResponse);
+  rpc ListAmendments(ListAmendmentsRequest) returns (ListAmendmentsResponse);
+  rpc GetGrammar(GetGrammarRequest) returns (GrammarResponse);
+}
+```
+
+### Using Rust Service from Go
+
+```go
+import "github.com/adamtc007/KYC-DSL/internal/rustclient"
+
+// Connect to Rust DSL service
+client, err := rustclient.NewDslClient("localhost:50060")
+defer client.Close()
+
+// Parse DSL
+parseResp, err := client.ParseDSL(dslText)
+
+// Validate
+valResult, err := client.ValidateDSL(dslText)
+
+// Execute
+execResp, err := client.ExecuteCase(caseID, "process")
+
+// Amend
+amendResp, err := client.AmendCase(caseName, "policy-discovery")
 ```
 
 ## Database Schema
@@ -278,125 +284,4 @@ S-expression syntax with ontology-aware extensions:
 **Tables**: 21 core tables + 3 views
 
 **Key Tables:**
-- `kyc_cases`, `case_versions`, `case_amendments` - Version control
-- `kyc_regulations`, `kyc_documents`, `kyc_attributes` - Ontology (8 regs, 27 docs, 36 attrs)
-- `kyc_attr_doc_links`, `kyc_doc_reg_links` - Relationships (51+ mappings)
-- `kyc_attribute_metadata` - Embeddings with pgvector
-- `rag_feedback` - Learning feedback system
-
-**Extensions:**
-- `pgvector` - 1536-dimensional embeddings (OpenAI text-embedding-3-large)
-
-## Testing
-
-### Go Tests
-
-```bash
-make test-parser        # Parser + validation
-make test               # Full suite
-make lint               # Code quality
-```
-
-### Rust Tests
-
-```bash
-cd rust
-cargo test              # All Rust tests
-cargo clippy            # Linter
-./verify.sh             # Integration check
-```
-
-### Integration Tests
-
-```bash
-./scripts/test_semantic_search.sh
-./scripts/test_feedback.sh
-./test_ontology_validation.sh
-```
-
-## Key Files
-
-**Documentation:**
-- `README.md` - Project overview
-- `RUST_QUICKSTART.md` - Rust 5-minute guide
-- `RUST_MIGRATION_REPORT.md` - Architecture details
-- `REGULATORY_ONTOLOGY.md` - Ontology documentation
-- `RAG_VECTOR_SEARCH.md` - Semantic search guide
-- `RAG_FEEDBACK.md` - Feedback loop system
-- `AMENDMENT_SYSTEM.md` - Amendment workflows
-- `OWNERSHIP_CONTROL.md` - Ownership validation
-
-**Configuration:**
-- `Makefile` - Build targets for both Go and Rust
-- `go.mod` - Go dependencies
-- `rust/Cargo.toml` - Rust workspace
-
-**Examples:**
-- `sample_case.dsl` - Basic case
-- `ontology_example.dsl` - Full ontology-aware example
-- `ownership_case.dsl` - Ownership structures
-- `derived_attributes_example.dsl` - Attribute lineage
-
-## Dependencies
-
-**Go:**
-- `github.com/alecthomas/participle/v2` - Parser generation
-- `github.com/jmoiron/sqlx` - PostgreSQL extensions
-- `github.com/lib/pq` - PostgreSQL driver
-- `github.com/sashabaranov/go-openai` - OpenAI embeddings
-- `google.golang.org/grpc` - gRPC framework
-- `google.golang.org/protobuf` - Protocol Buffers
-
-**Rust:**
-- `nom` - Parser combinators
-- `serde` - Serialization
-- `tonic` - gRPC framework
-- `tokio` - Async runtime
-- `prost` - Protocol Buffers
-
-## Current Features
-
-**DSL Processing:**
-- S-expression parsing with validation
-- Grammar-based syntax checking
-- Ontology reference validation
-- Ownership structure validation (sum rules, controllers)
-
-**Regulatory Ontology:**
-- 8 regulations (FATCA, CRS, AMLD5/6, MAS626, etc.)
-- 27 document types
-- 36 attributes
-- 51+ attribute-document mappings
-- 18+ document-regulation links
-
-**Version Control:**
-- SHA-256 content hashing
-- Full case history tracking
-- Incremental amendment system
-- Rollback capability
-
-**RAG & Semantic Search:**
-- OpenAI embeddings (text-embedding-3-large)
-- pgvector similarity search
-- Feedback loop learning
-- Multi-agent feedback support
-
-**APIs:**
-- REST API (port 8080)
-- gRPC Go service (port 50051)
-- gRPC Rust service (port 50060)
-- Shared protobuf definitions
-
-## Port Allocation
-
-- **8080** - Go REST API (`cmd/kycserver`)
-- **50051** - Go gRPC service (`cmd/server`)
-- **50060** - Rust gRPC service (`kyc_dsl_service`)
-- **50070** - Data Service gRPC (`cmd/dataserver`) ★ NEW
-- **5432** - PostgreSQL database
-
----
-
-**Last Updated**: 2024  
-**Version**: 1.5  
-**Architecture**: Dual Go/Rust with Shared Protobuf
+- `kyc_cases`, `case_versions`, `case_amendments` - Version control (

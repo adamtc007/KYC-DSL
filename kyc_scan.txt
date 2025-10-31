@@ -1,0 +1,473 @@
+./internal/rustclient/dsl_client.go:func (c *DslClient) ParseDSL(dsl string) (*pb.ParseResponse, error) {
+./internal/rustclient/dsl_client.go:	resp, err := c.client.Parse(ctx, &pb.ParseRequest{Dsl: dsl})
+./internal/rustclient/dsl_client.go:func (c *DslClient) ValidateDSL(dsl string) (*pb.ValidationResult, error) {
+./internal/rustclient/dsl_client.go:	result, err := c.client.Validate(ctx, &pb.ValidateRequest{Dsl: dsl})
+./internal/dataservice/data_service.go:		SELECT
+./internal/dataservice/data_service.go:		FROM kyc_attributes
+./internal/dataservice/data_service.go:		SELECT
+./internal/dataservice/data_service.go:		FROM kyc_attributes
+./internal/dataservice/data_service.go:	countQuery := `SELECT COUNT(*) FROM kyc_attributes`
+./internal/dataservice/data_service.go:		SELECT
+./internal/dataservice/data_service.go:		FROM kyc_documents
+./internal/dataservice/data_service.go:		SELECT
+./internal/dataservice/data_service.go:		FROM kyc_documents
+./internal/dataservice/data_service.go:	countQuery := `SELECT COUNT(*) FROM kyc_documents`
+./internal/dataservice/data_service.go:		INSERT INTO case_versions (case_id, dsl_source, compiled_json, status, created_at)
+./internal/dataservice/data_service.go:		SELECT
+./internal/dataservice/data_service.go:			dsl_source,
+./internal/dataservice/data_service.go:		FROM case_versions
+./internal/dataservice/data_service.go:		SELECT
+./internal/dataservice/data_service.go:			dsl_source,
+./internal/dataservice/data_service.go:		FROM case_versions
+./internal/dataservice/data_service.go:	countQuery := `SELECT COUNT(*) FROM case_versions WHERE case_id = $1`
+./internal/dataservice/db.go://   - DATABASE_URL: full connection string (default: localhost:5432/kyc_dsl)
+./internal/dataservice/db.go://   - PGDATABASE: PostgreSQL database (default: kyc_dsl)
+./internal/dataservice/db.go:	database := getEnv("PGDATABASE", "kyc_dsl")
+./internal/dataservice/ontology_service.go:	  SELECT id, name, entity_type, COALESCE(legal_form,''), jurisdiction,
+./internal/dataservice/ontology_service.go:	    FROM entity WHERE id=$1`, req.Id)
+./internal/dataservice/ontology_service.go:	  SELECT id, name, entity_type, COALESCE(legal_form,''), jurisdiction,
+./internal/dataservice/ontology_service.go:	    FROM entity ORDER BY name LIMIT $1 OFFSET $2`, limit, req.Offset)
+./internal/dataservice/ontology_service.go:	if err := DB.QueryRow(ctx, "SELECT COUNT(*) FROM entity").Scan(&total); err != nil {
+./internal/dataservice/ontology_service.go:	  SELECT id, name, entity_type, COALESCE(legal_form,''), jurisdiction,
+./internal/dataservice/ontology_service.go:	    FROM entity 
+./internal/dataservice/ontology_service.go:	  SELECT id, name, COALESCE(sponsor_entity_id::text,''), COALESCE(domicile,''), COALESCE(description,'')
+./internal/dataservice/ontology_service.go:	    FROM cbu WHERE id=$1`, req.Id)
+./internal/dataservice/ontology_service.go:	  SELECT cr.id, cr.cbu_id, cr.entity_id,
+./internal/dataservice/ontology_service.go:	    FROM cbu_role cr
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, COALESCE(description,''), attr_type, 
+./internal/dataservice/ontology_service.go:	    FROM dictionary_attribute WHERE id=$1`, req.Id)
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, COALESCE(description,''), attr_type,
+./internal/dataservice/ontology_service.go:	    FROM dictionary_attribute
+./internal/dataservice/ontology_service.go:	if err := DB.QueryRow(ctx, "SELECT COUNT(*) FROM dictionary_attribute").Scan(&total); err != nil {
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, COALESCE(description,''), attr_type,
+./internal/dataservice/ontology_service.go:	    FROM dictionary_attribute
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, COALESCE(description,''), COALESCE(domain,''), synonyms
+./internal/dataservice/ontology_service.go:	    FROM dictionary_concept WHERE id=$1`, req.Id)
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, COALESCE(description,''), COALESCE(domain,''), synonyms
+./internal/dataservice/ontology_service.go:	    FROM dictionary_concept
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, jurisdiction, COALESCE(authority,''), COALESCE(description,'')
+./internal/dataservice/ontology_service.go:	    FROM dictionary_regulation WHERE id=$1`, req.Id)
+./internal/dataservice/ontology_service.go:	  SELECT id, code, name, jurisdiction, COALESCE(authority,''), COALESCE(description,'')
+./internal/dataservice/ontology_service.go:	    FROM dictionary_regulation ORDER BY code LIMIT $1 OFFSET $2`, limit, req.Offset)
+./internal/dataservice/ontology_service.go:	if err := DB.QueryRow(ctx, "SELECT COUNT(*) FROM dictionary_regulation").Scan(&total); err != nil {
+./internal/dataservice/ontology_service.go:	  SELECT id, code, title, COALESCE(jurisdiction,''), COALESCE(category,''), COALESCE(description,'')
+./internal/dataservice/ontology_service.go:	    FROM dictionary_document WHERE id=$1`, req.Id)
+./internal/dataservice/ontology_service.go:	  SELECT id, code, title, COALESCE(jurisdiction,''), COALESCE(category,''), COALESCE(description,'')
+./internal/dataservice/ontology_service.go:	    FROM dictionary_document ORDER BY code LIMIT $1 OFFSET $2`, limit, req.Offset)
+./internal/dataservice/ontology_service.go:	if err := DB.QueryRow(ctx, "SELECT COUNT(*) FROM dictionary_document").Scan(&total); err != nil {
+./internal/dataservice/ontology_service.go:	  SELECT id, controller_entity_id, controlled_entity_id, control_type::text,
+./internal/dataservice/ontology_service.go:	    FROM entity_control
+./internal/cli/cli.go:	dslContent, err := os.ReadFile(filePath)
+./internal/cli/cli.go:	dslText := string(dslContent)
+./internal/cli/cli.go:	parseResp, err := rustClient.ParseDSL(dslText)
+./internal/cli/cli.go:	valResult, err := rustClient.ValidateDSL(dslText)
+./internal/cli/cli.go:	if err := storage.SaveCaseVersion(db, caseName, dslText); err != nil {
+./internal/cli/cli.go:	dsl, err := storage.GetLatestDSL(db, caseName)
+./internal/cli/cli.go:	valResult, err := rustClient.ValidateDSL(dsl)
+./internal/cli/cli.go:	fmt.Println("  kycctl <dsl-file>                       - Parse and process a DSL file")
+./internal/cli/cli.go:	fmt.Println("  kycctl sample_case.dsl")
+./internal/cli/cli.go:	fmt.Println("  PGDATABASE              - PostgreSQL database (default: kyc_dsl)")
+./internal/ontology/multimodal_repo.go:		SELECT
+./internal/ontology/multimodal_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/multimodal_repo.go:			SELECT DISTINCT
+./internal/ontology/multimodal_repo.go:			FROM kyc_documents d
+./internal/ontology/multimodal_repo.go:			SELECT DISTINCT
+./internal/ontology/multimodal_repo.go:			FROM kyc_regulations r
+./internal/ontology/multimodal_repo.go:		SELECT
+./internal/ontology/multimodal_repo.go:		FROM kyc_documents
+./internal/ontology/multimodal_repo.go:		SELECT
+./internal/ontology/multimodal_repo.go:		FROM kyc_regulations
+./internal/ontology/multimodal_repo.go:		SELECT DISTINCT
+./internal/ontology/multimodal_repo.go:		FROM kyc_documents d
+./internal/ontology/multimodal_repo.go:		SELECT DISTINCT
+./internal/ontology/multimodal_repo.go:		FROM kyc_regulations r
+./internal/ontology/multimodal_repo.go:		SELECT
+./internal/ontology/multimodal_repo.go:		FROM kyc_attribute_metadata am
+./internal/ontology/multimodal_repo.go:		INSERT INTO kyc_documents (code, name, title, domain, jurisdiction, doc_type, description, embedding)
+./internal/ontology/multimodal_repo.go:		DO UPDATE SET
+./internal/ontology/multimodal_repo.go:		INSERT INTO kyc_regulations (code, name, title, jurisdiction, region, authority, citation, summary, description, embedding)
+./internal/ontology/multimodal_repo.go:		DO UPDATE SET
+./internal/ontology/multimodal_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_documents")
+./internal/ontology/multimodal_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_regulations")
+./internal/ontology/multimodal_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_documents WHERE embedding IS NOT NULL")
+./internal/ontology/multimodal_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_regulations WHERE embedding IS NOT NULL")
+./internal/ontology/metadata_repo.go:		INSERT INTO kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:		DO UPDATE SET
+./internal/ontology/metadata_repo.go:		SELECT id, attribute_code, synonyms, data_type, domain_values, risk_level,
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:		SELECT id, attribute_code, synonyms, data_type, domain_values, risk_level,
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:		SELECT
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:		SELECT
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:		SELECT
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_attribute_metadata")
+./internal/ontology/metadata_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_attribute_metadata WHERE embedding IS NOT NULL")
+./internal/ontology/metadata_repo.go:		SELECT
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/metadata_repo.go:		SELECT risk_level, COUNT(*) as count
+./internal/ontology/metadata_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/enhancements_repo.go:		INSERT INTO rag_feedback
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM feedback_stats_by_attribute
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_feedback
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_feedback
+./internal/ontology/enhancements_repo.go:		INSERT INTO kyc_document_sections
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM kyc_document_sections
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM kyc_document_sections
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM document_section_context
+./internal/ontology/enhancements_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_document_sections")
+./internal/ontology/enhancements_repo.go:	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM kyc_document_sections WHERE embedding IS NOT NULL")
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_clusters
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_clusters
+./internal/ontology/enhancements_repo.go:	query := `SELECT * FROM recommend_clusters($1, $2)`
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM kyc_attribute_metadata
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM cluster_details
+./internal/ontology/enhancements_repo.go:		INSERT INTO rag_clusters
+./internal/ontology/enhancements_repo.go:		DO UPDATE SET
+./internal/ontology/enhancements_repo.go:		UPDATE rag_clusters
+./internal/ontology/enhancements_repo.go:			SELECT AVG(embedding)::vector(1536)
+./internal/ontology/enhancements_repo.go:			FROM kyc_attribute_metadata
+./internal/ontology/enhancements_repo.go:		UPDATE rag_clusters
+./internal/ontology/enhancements_repo.go:			SELECT AVG(embedding)::vector(1536)
+./internal/ontology/enhancements_repo.go:			FROM kyc_attribute_metadata
+./internal/ontology/enhancements_repo.go:		INSERT INTO rag_audit_log
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM popular_queries
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM agent_performance
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_audit_log
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_audit_log
+./internal/ontology/enhancements_repo.go:		SELECT
+./internal/ontology/enhancements_repo.go:		FROM rag_audit_log
+./internal/ontology/enhancements_repo.go:	query := `SELECT cleanup_old_audit_logs($1)`
+./internal/ontology/enhancements_repo.go:	err := r.db.GetContext(ctx, &totalQueries, "SELECT COUNT(*) FROM rag_audit_log")
+./internal/ontology/enhancements_repo.go:	err = r.db.GetContext(ctx, &queriesToday, "SELECT COUNT(*) FROM rag_audit_log WHERE created_at >= CURRENT_DATE")
+./internal/ontology/enhancements_repo.go:	err = r.db.GetContext(ctx, &errorCount, "SELECT COUNT(*) FROM rag_audit_log WHERE error_message IS NOT NULL")
+./internal/ontology/enhancements_repo.go:	err = r.db.GetContext(ctx, &avgLatency, "SELECT COALESCE(AVG(latency_ms), 0) FROM rag_audit_log WHERE latency_ms IS NOT NULL")
+./internal/ontology/enhancements_repo.go:	err = r.db.GetContext(ctx, &uniqueAgents, "SELECT COUNT(DISTINCT agent_name) FROM rag_audit_log WHERE agent_name IS NOT NULL")
+./internal/ontology/feedback_repo.go:		INSERT INTO rag_feedback
+./internal/ontology/feedback_repo.go:		SELECT id, query_text, attribute_code, document_code, regulation_code,
+./internal/ontology/feedback_repo.go:		FROM rag_feedback
+./internal/ontology/feedback_repo.go:		SELECT feedback, agent_type, count, avg_confidence,
+./internal/ontology/feedback_repo.go:		FROM rag_feedback_summary
+./internal/ontology/feedback_repo.go:		SELECT attribute_code, feedback, feedback_count,
+./internal/ontology/feedback_repo.go:		FROM attribute_feedback_summary
+./internal/ontology/feedback_repo.go:		SELECT id, query_text, attribute_code, document_code, regulation_code,
+./internal/ontology/feedback_repo.go:		FROM rag_feedback
+./internal/ontology/feedback_repo.go:		SELECT id, query_text, attribute_code, document_code, regulation_code,
+./internal/ontology/feedback_repo.go:		FROM rag_feedback
+./internal/ontology/feedback_repo.go:		SELECT
+./internal/ontology/feedback_repo.go:		FROM rag_feedback
+./internal/ontology/feedback_repo.go:		err = r.db.Get(&avgConf, "SELECT AVG(confidence) FROM rag_feedback")
+./internal/ontology/feedback_repo.go:		SELECT agent_type, COUNT(*) as count
+./internal/ontology/feedback_repo.go:		FROM rag_feedback
+./internal/ontology/feedback_repo.go:	err := r.db.Get(&count, "SELECT COUNT(*) FROM rag_feedback")
+./internal/ontology/feedback_repo.go:		SELECT feedback, COUNT(*) as count
+./internal/ontology/feedback_repo.go:		FROM rag_feedback
+./internal/ontology/feedback_repo.go:	query := "DELETE FROM rag_feedback WHERE id = $1"
+./internal/ontology/feedback_repo.go:		DELETE FROM rag_feedback
+./internal/ontology/repository.go:	err := r.db.Select(&regs, "SELECT * FROM kyc_regulations ORDER BY code")
+./internal/ontology/repository.go:	err := r.db.Get(&reg, "SELECT * FROM kyc_regulations WHERE code=$1", code)
+./internal/ontology/repository.go:	err := r.db.Select(&docs, "SELECT * FROM kyc_documents ORDER BY code")
+./internal/ontology/repository.go:	err := r.db.Select(&docs, "SELECT * FROM kyc_documents WHERE regulation_code=$1 ORDER BY code", regCode)
+./internal/ontology/repository.go:	err := r.db.Get(&doc, "SELECT * FROM kyc_documents WHERE code=$1", code)
+./internal/ontology/repository.go:	err := r.db.Select(&attrs, "SELECT * FROM kyc_attributes ORDER BY code")
+./internal/ontology/repository.go:	err := r.db.Get(&attr, "SELECT * FROM kyc_attributes WHERE code=$1", code)
+./internal/ontology/repository.go:		SELECT a.* FROM kyc_attributes a
+./internal/ontology/repository.go:		SELECT * FROM kyc_attr_doc_links WHERE attribute_code=$1 ORDER BY source_tier
+./internal/ontology/repository.go:		SELECT d.* FROM kyc_documents d
+./internal/ontology/repository.go:		SELECT * FROM kyc_doc_reg_links WHERE document_code=$1
+./internal/ontology/repository.go:		SELECT r.* FROM kyc_regulations r
+./internal/ontology/repository.go:	err := r.db.Select(&codes, "SELECT code FROM kyc_documents ORDER BY code")
+./internal/ontology/repository.go:	err := r.db.Select(&codes, "SELECT code FROM kyc_attributes ORDER BY code")
+./internal/ontology/repository.go:	err := r.db.Select(&codes, "SELECT code FROM kyc_regulations ORDER BY code")
+./internal/ontology/repository.go:		SELECT COUNT(*) FROM kyc_doc_reg_links WHERE document_code=$1
+./internal/ontology/repository.go:		SELECT * FROM kyc_attributes
+./internal/ontology/repository.go:		SELECT * FROM kyc_attributes
+./internal/ontology/repository.go:		SELECT * FROM kyc_attribute_derivations
+./internal/ontology/repository.go:		SELECT
+./internal/ontology/repository.go:		FROM kyc_attribute_derivations d
+./internal/ontology/repository.go:		INSERT INTO kyc_attribute_derivations
+./internal/ontology/repository.go:			SELECT attribute_class FROM kyc_attributes WHERE code=$1
+./internal/ontology/repository.go:		SELECT * FROM kyc_attribute_metadata WHERE attribute_code=$1
+./internal/ontology/repository.go:		SELECT * FROM kyc_attribute_clusters ORDER BY priority, cluster_name
+./internal/ontology/repository.go:		SELECT * FROM kyc_attribute_clusters WHERE cluster_code=$1
+./internal/ontology/repository.go:		SELECT a.* FROM kyc_attributes a
+./internal/ontology/repository.go:			SELECT unnest(attribute_codes)
+./internal/ontology/repository.go:			FROM kyc_attribute_clusters
+./internal/ontology/repository.go:		SELECT
+./internal/ontology/repository.go:		FROM kyc_attributes a
+./internal/ontology/repository.go:		SELECT a.* FROM kyc_attributes a
+./internal/ontology/repository.go:		SELECT * FROM kyc_attribute_relationships
+./internal/ontology/repository.go:		SELECT DISTINCT a.*
+./internal/ontology/repository.go:		FROM find_related_attributes($1, $2) f
+./internal/storage/postgres.go:		dbname = "kyc_dsl"
+./internal/storage/postgres.go:		dsl_snapshot TEXT,
+./internal/storage/postgres.go:		ebnf TEXT,
+./internal/storage/postgres.go:	query := `INSERT INTO kyc_cases (name, status, last_updated) VALUES ($1, 'pending', $2)`
+./internal/storage/postgres.go:func InsertVersion(db *sqlx.DB, caseName string, version int, dsl string) error {
+./internal/storage/postgres.go:	hash := sha256Hex(dsl)
+./internal/storage/postgres.go:	query := `INSERT INTO kyc_case_versions (case_name, version, dsl_snapshot, hash) VALUES ($1, $2, $3, $4)`
+./internal/storage/postgres.go:	_, err := db.Exec(query, caseName, version, dsl, hash)
+./internal/storage/postgres.go:	query := `INSERT INTO kyc_case_amendments (case_name, step, change_type, diff) VALUES ($1, $2, $3, $4)`
+./internal/storage/postgres.go:	query := `SELECT id, case_name, step, change_type, diff, created_at
+./internal/storage/postgres.go:	          FROM kyc_case_amendments
+./internal/storage/postgres.go:	DslSnapshot string    `db:"dsl_snapshot"`
+./internal/storage/postgres.go:	err := db.Get(&current, "SELECT COALESCE(MAX(version), 0) FROM kyc_case_versions WHERE case_name=$1", caseName)
+./internal/storage/postgres.go:func SaveCaseVersion(db *sqlx.DB, caseName, dsl string) error {
+./internal/storage/postgres.go:	hash := sha256Hex(dsl)
+./internal/storage/postgres.go:	query := `INSERT INTO kyc_case_versions (case_name, version, dsl_snapshot, hash) VALUES ($1, $2, $3, $4)`
+./internal/storage/postgres.go:	_, err = db.Exec(query, caseName, nextVer, dsl, hash)
+./internal/storage/postgres.go:	var dsl string
+./internal/storage/postgres.go:	err := db.Get(&dsl, `
+./internal/storage/postgres.go:		SELECT dsl_snapshot FROM kyc_case_versions
+./internal/storage/postgres.go:	return dsl, nil
+./internal/storage/postgres.go:		INSERT INTO kyc_case_amendments (case_name, step, change_type, diff)
+./internal/storage/postgres.go:func InsertGrammar(db *sqlx.DB, name, version, ebnf string) error {
+./internal/storage/postgres.go:		INSERT INTO kyc_grammar (name, version, ebnf)
+./internal/storage/postgres.go:		ON CONFLICT (name) DO UPDATE
+./internal/storage/postgres.go:		SET version = EXCLUDED.version, ebnf = EXCLUDED.ebnf, created_at = NOW();
+./internal/storage/postgres.go:	_, err := db.Exec(query, name, version, ebnf)
+./internal/storage/postgres.go:	var ebnf string
+./internal/storage/postgres.go:	err := db.Get(&ebnf, "SELECT ebnf FROM kyc_grammar WHERE name=$1", name)
+./internal/storage/postgres.go:	return ebnf, nil
+./internal/storage/postgres.go:		INSERT INTO kyc_case_validations
+./internal/storage/postgres.go:		INSERT INTO kyc_validation_findings
+./internal/storage/postgres.go:		SELECT id, case_name, version, validation_time, grammar_version, ontology_version,
+./internal/storage/postgres.go:		FROM kyc_case_validations
+./internal/storage/postgres.go:		INSERT INTO kyc_lineage_evaluations
+./internal/storage/postgres.go:		SELECT id, case_name, case_version, derived_code, value, value_type,
+./internal/storage/postgres.go:		FROM kyc_lineage_evaluations
+./internal/amend/amend.go:	query := `SELECT case_name, version, dsl_snapshot, hash, created_at
+./internal/amend/amend.go:	          FROM kyc_case_versions
+./api/pb/kyc_case.pb.go:	Dsl           string                 `protobuf:"bytes,1,opt,name=dsl,proto3" json:"dsl,omitempty"`
+./api/pb/kyc_case.pb.go:	Dsl                string                 `protobuf:"bytes,4,opt,name=dsl,proto3" json:"dsl,omitempty"`
+./api/pb/kyc_case.pb.go:	DslSnapshot   string                 `protobuf:"bytes,3,opt,name=dsl_snapshot,json=dslSnapshot,proto3" json:"dsl_snapshot,omitempty"`
+./api/pb/kyc_case.pb.go:	"\x03dsl\x18\x01 \x01(\tR\x03dsl\"#\n" +
+./api/pb/kyc_case.pb.go:	"\x03dsl\x18\x04 \x01(\tR\x03dsl\x12\x16\n" +
+./api/pb/kyc_case.pb.go:	"\fdsl_snapshot\x18\x03 \x01(\tR\vdslSnapshot\x12\x1f\n" +
+./api/pb/dsl_service.pb.go:// source: api/proto/dsl_service.proto
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[0]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[0]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{0}
+./api/pb/dsl_service.pb.go:	UpdatedDsl    string                 `protobuf:"bytes,1,opt,name=updated_dsl,json=updatedDsl,proto3" json:"updated_dsl,omitempty"`
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[1]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[1]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{1}
+./api/pb/dsl_service.pb.go:	Dsl           string                 `protobuf:"bytes,2,opt,name=dsl,proto3" json:"dsl,omitempty"` // Optional: validate DSL without persisting
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[2]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[2]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{2}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[3]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[3]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{3}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[4]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[4]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{4}
+./api/pb/dsl_service.pb.go:	Dsl           string                 `protobuf:"bytes,1,opt,name=dsl,proto3" json:"dsl,omitempty"`
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[5]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[5]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{5}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[6]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[6]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{6}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[7]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[7]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{7}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[8]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[8]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{8}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[9]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[9]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{9}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[10]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[10]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{10}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[11]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[11]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{11}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[12]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[12]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{12}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[13]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[13]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{13}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[14]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[14]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{14}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[15]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[15]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{15}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[16]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[16]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{16}
+./api/pb/dsl_service.pb.go:	Dsl           string                 `protobuf:"bytes,2,opt,name=dsl,proto3" json:"dsl,omitempty"`
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[17]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[17]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{17}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[18]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[18]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{18}
+./api/pb/dsl_service.pb.go:	UpdatedDsl    string                 `protobuf:"bytes,3,opt,name=updated_dsl,json=updatedDsl,proto3" json:"updated_dsl,omitempty"`
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[19]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[19]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{19}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[20]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[20]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{20}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[21]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[21]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{21}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[22]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[22]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{22}
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[23]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[23]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{23}
+./api/pb/dsl_service.pb.go:	Ebnf          string                 `protobuf:"bytes,1,opt,name=ebnf,proto3" json:"ebnf,omitempty"`
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[24]
+./api/pb/dsl_service.pb.go:	mi := &file_api_proto_dsl_service_proto_msgTypes[24]
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescGZIP(), []int{24}
+./api/pb/dsl_service.pb.go:var File_api_proto_dsl_service_proto protoreflect.FileDescriptor
+./api/pb/dsl_service.pb.go:const file_api_proto_dsl_service_proto_rawDesc = "" +
+./api/pb/dsl_service.pb.go:	"\x1bapi/proto/dsl_service.proto\x12\akyc.dsl\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd2\x01\n" +
+./api/pb/dsl_service.pb.go:	"\targuments\x18\x03 \x03(\v2&.kyc.dsl.ExecuteRequest.ArgumentsEntryR\targuments\x1a<\n" +
+./api/pb/dsl_service.pb.go:	"\vupdated_dsl\x18\x01 \x01(\tR\n" +
+./api/pb/dsl_service.pb.go:	"\x03dsl\x18\x02 \x01(\tR\x03dsl\"\x8e\x01\n" +
+./api/pb/dsl_service.pb.go:	"\x06issues\x18\x04 \x03(\v2\x18.kyc.dsl.ValidationIssueR\x06issues\"\x87\x01\n" +
+./api/pb/dsl_service.pb.go:	"\x03dsl\x18\x01 \x01(\tR\x03dsl\"\x86\x01\n" +
+./api/pb/dsl_service.pb.go:	"\x05cases\x18\x03 \x03(\v2\x13.kyc.dsl.ParsedCaseR\x05cases\x12\x16\n" +
+./api/pb/dsl_service.pb.go:	"\townership\x18\t \x01(\v2\x1b.kyc.dsl.OwnershipStructureR\townership\x12@\n" +
+./api/pb/dsl_service.pb.go:	" \x01(\v2\x17.kyc.dsl.DataDictionaryR\x0edataDictionary\x12R\n" +
+./api/pb/dsl_service.pb.go:	"\x15document_requirements\x18\v \x01(\v2\x1d.kyc.dsl.DocumentRequirementsR\x14documentRequirements\"\xdb\x01\n" +
+./api/pb/dsl_service.pb.go:	"\x06owners\x18\x02 \x03(\v2\x0e.kyc.dsl.OwnerR\x06owners\x12E\n" +
+./api/pb/dsl_service.pb.go:	"\x11beneficial_owners\x18\x03 \x03(\v2\x18.kyc.dsl.BeneficialOwnerR\x10beneficialOwners\x125\n" +
+./api/pb/dsl_service.pb.go:	"\vcontrollers\x18\x04 \x03(\v2\x13.kyc.dsl.ControllerR\vcontrollers\";\n" +
+./api/pb/dsl_service.pb.go:	"attributes\x18\x01 \x03(\v2\x1c.kyc.dsl.AttributeDefinitionR\n" +
+./api/pb/dsl_service.pb.go:	"\brequired\x18\x02 \x03(\v2\x1c.kyc.dsl.DocumentRequirementR\brequired\"=\n" +
+./api/pb/dsl_service.pb.go:	"\x04case\x18\x01 \x01(\v2\x13.kyc.dsl.ParsedCaseR\x04case\"Y\n" +
+./api/pb/dsl_service.pb.go:	"\x03dsl\x18\x02 \x01(\tR\x03dsl\x12\x18\n" +
+./api/pb/dsl_service.pb.go:	"parameters\x18\x03 \x03(\v2%.kyc.dsl.AmendRequest.ParametersEntryR\n" +
+./api/pb/dsl_service.pb.go:	"\vupdated_dsl\x18\x03 \x01(\tR\n" +
+./api/pb/dsl_service.pb.go:	"amendments\x18\x01 \x03(\v2\x16.kyc.dsl.AmendmentTypeR\n" +
+./api/pb/dsl_service.pb.go:	"\x04ebnf\x18\x01 \x01(\tR\x04ebnf\x12\x18\n" +
+./api/pb/dsl_service.pb.go:	"\aExecute\x12\x17.kyc.dsl.ExecuteRequest\x1a\x18.kyc.dsl.ExecuteResponse\x12?\n" +
+./api/pb/dsl_service.pb.go:	"\bValidate\x12\x18.kyc.dsl.ValidateRequest\x1a\x19.kyc.dsl.ValidationResult\x126\n" +
+./api/pb/dsl_service.pb.go:	"\x05Parse\x12\x15.kyc.dsl.ParseRequest\x1a\x16.kyc.dsl.ParseResponse\x12B\n" +
+./api/pb/dsl_service.pb.go:	"\tSerialize\x12\x19.kyc.dsl.SerializeRequest\x1a\x1a.kyc.dsl.SerializeResponse\x126\n" +
+./api/pb/dsl_service.pb.go:	"\x05Amend\x12\x15.kyc.dsl.AmendRequest\x1a\x16.kyc.dsl.AmendResponse\x12Q\n" +
+./api/pb/dsl_service.pb.go:	"\x0eListAmendments\x12\x1e.kyc.dsl.ListAmendmentsRequest\x1a\x1f.kyc.dsl.ListAmendmentsResponse\x12B\n" +
+./api/pb/dsl_service.pb.go:	"GetGrammar\x12\x1a.kyc.dsl.GetGrammarRequest\x1a\x18.kyc.dsl.GrammarResponseB(Z&github.com/adamtc007/KYC-DSL/api/pb;pbb\x06proto3"
+./api/pb/dsl_service.pb.go:	file_api_proto_dsl_service_proto_rawDescOnce sync.Once
+./api/pb/dsl_service.pb.go:	file_api_proto_dsl_service_proto_rawDescData []byte
+./api/pb/dsl_service.pb.go:func file_api_proto_dsl_service_proto_rawDescGZIP() []byte {
+./api/pb/dsl_service.pb.go:	file_api_proto_dsl_service_proto_rawDescOnce.Do(func() {
+./api/pb/dsl_service.pb.go:		file_api_proto_dsl_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_dsl_service_proto_rawDesc), len(file_api_proto_dsl_service_proto_rawDesc)))
+./api/pb/dsl_service.pb.go:	return file_api_proto_dsl_service_proto_rawDescData
+./api/pb/dsl_service.pb.go:var file_api_proto_dsl_service_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+./api/pb/dsl_service.pb.go:var file_api_proto_dsl_service_proto_goTypes = []any{
+./api/pb/dsl_service.pb.go:	(*ExecuteRequest)(nil),         // 0: kyc.dsl.ExecuteRequest
+./api/pb/dsl_service.pb.go:	(*ExecuteResponse)(nil),        // 1: kyc.dsl.ExecuteResponse
+./api/pb/dsl_service.pb.go:	(*ValidateRequest)(nil),        // 2: kyc.dsl.ValidateRequest
+./api/pb/dsl_service.pb.go:	(*ValidationResult)(nil),       // 3: kyc.dsl.ValidationResult
+./api/pb/dsl_service.pb.go:	(*ValidationIssue)(nil),        // 4: kyc.dsl.ValidationIssue
+./api/pb/dsl_service.pb.go:	(*ParseRequest)(nil),           // 5: kyc.dsl.ParseRequest
+./api/pb/dsl_service.pb.go:	(*ParseResponse)(nil),          // 6: kyc.dsl.ParseResponse
+./api/pb/dsl_service.pb.go:	(*ParsedCase)(nil),             // 7: kyc.dsl.ParsedCase
+./api/pb/dsl_service.pb.go:	(*OwnershipStructure)(nil),     // 8: kyc.dsl.OwnershipStructure
+./api/pb/dsl_service.pb.go:	(*Owner)(nil),                  // 9: kyc.dsl.Owner
+./api/pb/dsl_service.pb.go:	(*BeneficialOwner)(nil),        // 10: kyc.dsl.BeneficialOwner
+./api/pb/dsl_service.pb.go:	(*Controller)(nil),             // 11: kyc.dsl.Controller
+./api/pb/dsl_service.pb.go:	(*DataDictionary)(nil),         // 12: kyc.dsl.DataDictionary
+./api/pb/dsl_service.pb.go:	(*AttributeDefinition)(nil),    // 13: kyc.dsl.AttributeDefinition
+./api/pb/dsl_service.pb.go:	(*DocumentRequirements)(nil),   // 14: kyc.dsl.DocumentRequirements
+./api/pb/dsl_service.pb.go:	(*DocumentRequirement)(nil),    // 15: kyc.dsl.DocumentRequirement
+./api/pb/dsl_service.pb.go:	(*SerializeRequest)(nil),       // 16: kyc.dsl.SerializeRequest
+./api/pb/dsl_service.pb.go:	(*SerializeResponse)(nil),      // 17: kyc.dsl.SerializeResponse
+./api/pb/dsl_service.pb.go:	(*AmendRequest)(nil),           // 18: kyc.dsl.AmendRequest
+./api/pb/dsl_service.pb.go:	(*AmendResponse)(nil),          // 19: kyc.dsl.AmendResponse
+./api/pb/dsl_service.pb.go:	(*ListAmendmentsRequest)(nil),  // 20: kyc.dsl.ListAmendmentsRequest
+./api/pb/dsl_service.pb.go:	(*ListAmendmentsResponse)(nil), // 21: kyc.dsl.ListAmendmentsResponse
+./api/pb/dsl_service.pb.go:	(*AmendmentType)(nil),          // 22: kyc.dsl.AmendmentType
+./api/pb/dsl_service.pb.go:	(*GetGrammarRequest)(nil),      // 23: kyc.dsl.GetGrammarRequest
+./api/pb/dsl_service.pb.go:	(*GrammarResponse)(nil),        // 24: kyc.dsl.GrammarResponse
+./api/pb/dsl_service.pb.go:	nil,                            // 25: kyc.dsl.ExecuteRequest.ArgumentsEntry
+./api/pb/dsl_service.pb.go:	nil,                            // 26: kyc.dsl.AmendRequest.ParametersEntry
+./api/pb/dsl_service.pb.go:var file_api_proto_dsl_service_proto_depIdxs = []int32{
+./api/pb/dsl_service.pb.go:	25, // 0: kyc.dsl.ExecuteRequest.arguments:type_name -> kyc.dsl.ExecuteRequest.ArgumentsEntry
+./api/pb/dsl_service.pb.go:	4,  // 1: kyc.dsl.ValidationResult.issues:type_name -> kyc.dsl.ValidationIssue
+./api/pb/dsl_service.pb.go:	7,  // 2: kyc.dsl.ParseResponse.cases:type_name -> kyc.dsl.ParsedCase
+./api/pb/dsl_service.pb.go:	8,  // 3: kyc.dsl.ParsedCase.ownership:type_name -> kyc.dsl.OwnershipStructure
+./api/pb/dsl_service.pb.go:	12, // 4: kyc.dsl.ParsedCase.data_dictionary:type_name -> kyc.dsl.DataDictionary
+./api/pb/dsl_service.pb.go:	14, // 5: kyc.dsl.ParsedCase.document_requirements:type_name -> kyc.dsl.DocumentRequirements
+./api/pb/dsl_service.pb.go:	9,  // 6: kyc.dsl.OwnershipStructure.owners:type_name -> kyc.dsl.Owner
+./api/pb/dsl_service.pb.go:	10, // 7: kyc.dsl.OwnershipStructure.beneficial_owners:type_name -> kyc.dsl.BeneficialOwner
+./api/pb/dsl_service.pb.go:	11, // 8: kyc.dsl.OwnershipStructure.controllers:type_name -> kyc.dsl.Controller
+./api/pb/dsl_service.pb.go:	13, // 9: kyc.dsl.DataDictionary.attributes:type_name -> kyc.dsl.AttributeDefinition
+./api/pb/dsl_service.pb.go:	15, // 10: kyc.dsl.DocumentRequirements.required:type_name -> kyc.dsl.DocumentRequirement
+./api/pb/dsl_service.pb.go:	7,  // 11: kyc.dsl.SerializeRequest.case:type_name -> kyc.dsl.ParsedCase
+./api/pb/dsl_service.pb.go:	26, // 12: kyc.dsl.AmendRequest.parameters:type_name -> kyc.dsl.AmendRequest.ParametersEntry
+./api/pb/dsl_service.pb.go:	22, // 13: kyc.dsl.ListAmendmentsResponse.amendments:type_name -> kyc.dsl.AmendmentType
+./api/pb/dsl_service.pb.go:	27, // 14: kyc.dsl.GrammarResponse.created_at:type_name -> google.protobuf.Timestamp
+./api/pb/dsl_service.pb.go:	0,  // 15: kyc.dsl.DslService.Execute:input_type -> kyc.dsl.ExecuteRequest
+./api/pb/dsl_service.pb.go:	2,  // 16: kyc.dsl.DslService.Validate:input_type -> kyc.dsl.ValidateRequest
+./api/pb/dsl_service.pb.go:	5,  // 17: kyc.dsl.DslService.Parse:input_type -> kyc.dsl.ParseRequest
+./api/pb/dsl_service.pb.go:	16, // 18: kyc.dsl.DslService.Serialize:input_type -> kyc.dsl.SerializeRequest
+./api/pb/dsl_service.pb.go:	18, // 19: kyc.dsl.DslService.Amend:input_type -> kyc.dsl.AmendRequest
+./api/pb/dsl_service.pb.go:	20, // 20: kyc.dsl.DslService.ListAmendments:input_type -> kyc.dsl.ListAmendmentsRequest
+./api/pb/dsl_service.pb.go:	23, // 21: kyc.dsl.DslService.GetGrammar:input_type -> kyc.dsl.GetGrammarRequest
+./api/pb/dsl_service.pb.go:	1,  // 22: kyc.dsl.DslService.Execute:output_type -> kyc.dsl.ExecuteResponse
+./api/pb/dsl_service.pb.go:	3,  // 23: kyc.dsl.DslService.Validate:output_type -> kyc.dsl.ValidationResult
+./api/pb/dsl_service.pb.go:	6,  // 24: kyc.dsl.DslService.Parse:output_type -> kyc.dsl.ParseResponse
+./api/pb/dsl_service.pb.go:	17, // 25: kyc.dsl.DslService.Serialize:output_type -> kyc.dsl.SerializeResponse
+./api/pb/dsl_service.pb.go:	19, // 26: kyc.dsl.DslService.Amend:output_type -> kyc.dsl.AmendResponse
+./api/pb/dsl_service.pb.go:	21, // 27: kyc.dsl.DslService.ListAmendments:output_type -> kyc.dsl.ListAmendmentsResponse
+./api/pb/dsl_service.pb.go:	24, // 28: kyc.dsl.DslService.GetGrammar:output_type -> kyc.dsl.GrammarResponse
+./api/pb/dsl_service.pb.go:func init() { file_api_proto_dsl_service_proto_init() }
+./api/pb/dsl_service.pb.go:func file_api_proto_dsl_service_proto_init() {
+./api/pb/dsl_service.pb.go:	if File_api_proto_dsl_service_proto != nil {
+./api/pb/dsl_service.pb.go:			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_dsl_service_proto_rawDesc), len(file_api_proto_dsl_service_proto_rawDesc)),
+./api/pb/dsl_service.pb.go:		GoTypes:           file_api_proto_dsl_service_proto_goTypes,
+./api/pb/dsl_service.pb.go:		DependencyIndexes: file_api_proto_dsl_service_proto_depIdxs,
+./api/pb/dsl_service.pb.go:		MessageInfos:      file_api_proto_dsl_service_proto_msgTypes,
+./api/pb/dsl_service.pb.go:	File_api_proto_dsl_service_proto = out.File
+./api/pb/dsl_service.pb.go:	file_api_proto_dsl_service_proto_goTypes = nil
+./api/pb/dsl_service.pb.go:	file_api_proto_dsl_service_proto_depIdxs = nil
+./api/pb/kycontology/ontology_service.pb.go:	"\x13com.kycdsl.ontologyP\x01Z/github.com/adamtc007/KYC-DSL/api/pb/kycontologyb\x06proto3"
+./api/pb/dsl_service_grpc.pb.go:// source: api/proto/dsl_service.proto
+./api/pb/dsl_service_grpc.pb.go:	DslService_Execute_FullMethodName        = "/kyc.dsl.DslService/Execute"
+./api/pb/dsl_service_grpc.pb.go:	DslService_Validate_FullMethodName       = "/kyc.dsl.DslService/Validate"
+./api/pb/dsl_service_grpc.pb.go:	DslService_Parse_FullMethodName          = "/kyc.dsl.DslService/Parse"
+./api/pb/dsl_service_grpc.pb.go:	DslService_Serialize_FullMethodName      = "/kyc.dsl.DslService/Serialize"
+./api/pb/dsl_service_grpc.pb.go:	DslService_Amend_FullMethodName          = "/kyc.dsl.DslService/Amend"
+./api/pb/dsl_service_grpc.pb.go:	DslService_ListAmendments_FullMethodName = "/kyc.dsl.DslService/ListAmendments"
+./api/pb/dsl_service_grpc.pb.go:	DslService_GetGrammar_FullMethodName     = "/kyc.dsl.DslService/GetGrammar"
+./api/pb/dsl_service_grpc.pb.go:type dslServiceClient struct {
+./api/pb/dsl_service_grpc.pb.go:	return &dslServiceClient{cc}
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*ExecuteResponse, error) {
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) Validate(ctx context.Context, in *ValidateRequest, opts ...grpc.CallOption) (*ValidationResult, error) {
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) Parse(ctx context.Context, in *ParseRequest, opts ...grpc.CallOption) (*ParseResponse, error) {
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) Serialize(ctx context.Context, in *SerializeRequest, opts ...grpc.CallOption) (*SerializeResponse, error) {
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) Amend(ctx context.Context, in *AmendRequest, opts ...grpc.CallOption) (*AmendResponse, error) {
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) ListAmendments(ctx context.Context, in *ListAmendmentsRequest, opts ...grpc.CallOption) (*ListAmendmentsResponse, error) {
+./api/pb/dsl_service_grpc.pb.go:func (c *dslServiceClient) GetGrammar(ctx context.Context, in *GetGrammarRequest, opts ...grpc.CallOption) (*GrammarResponse, error) {
+./api/pb/dsl_service_grpc.pb.go:	ServiceName: "kyc.dsl.DslService",
+./api/pb/dsl_service_grpc.pb.go:	Metadata: "api/proto/dsl_service.proto",
+./api/pb/kycdata/data_service.pb.go:	DslSource     string                 `protobuf:"bytes,3,opt,name=dsl_source,json=dslSource,proto3" json:"dsl_source,omitempty"`
+./api/pb/kycdata/data_service.pb.go:	DslSource     string                 `protobuf:"bytes,2,opt,name=dsl_source,json=dslSource,proto3" json:"dsl_source,omitempty"`
+./api/pb/kycdata/data_service.pb.go:	"dsl_source\x18\x03 \x01(\tR\tdslSource\x12#\n" +
+./api/pb/kycdata/data_service.pb.go:	"dsl_source\x18\x02 \x01(\tR\tdslSource\x12#\n" +

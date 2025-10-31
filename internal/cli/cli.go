@@ -258,6 +258,9 @@ func ShowUsage() {
 	fmt.Println("  kycctl grammar                          - Store grammar definition in database")
 	fmt.Println("  kycctl ontology                         - Display regulatory data ontology")
 	fmt.Println("  kycctl validate <case>                  - Validate case and record audit trail")
+	fmt.Println("  kycctl get <case> [--version=N]         - Retrieve and display a case")
+	fmt.Println("  kycctl versions <case>                  - List all versions of a case")
+	fmt.Println("  kycctl list                             - List all cases in database")
 	fmt.Println("  kycctl <dsl-file>                       - Parse and process a DSL file")
 	fmt.Println("  kycctl amend <case> --step=<phase>      - Apply incremental amendment to case")
 	fmt.Println()
@@ -272,6 +275,9 @@ func ShowUsage() {
 	fmt.Println("  kycctl grammar")
 	fmt.Println("  kycctl ontology")
 	fmt.Println("  kycctl validate BLACKROCK-GLOBAL-EQUITY-FUND")
+	fmt.Println("  kycctl get AVIVA-EU-EQUITY-FUND")
+	fmt.Println("  kycctl versions AVIVA-EU-EQUITY-FUND")
+	fmt.Println("  kycctl list")
 	fmt.Println("  kycctl sample_case.dsl")
 	fmt.Println("  kycctl amend AVIVA-EU-EQUITY-FUND --step=policy-discovery")
 	fmt.Println("  kycctl seed-metadata")
@@ -330,6 +336,37 @@ func Run(args []string) {
 			actor = strings.TrimPrefix(args[2], "--actor=")
 		}
 		if err := RunValidateCommand(caseName, actor); err != nil {
+			log.Fatal(err)
+		}
+
+	case "get":
+		if len(args) < 2 {
+			fmt.Println("Error: get command requires case name")
+			ShowUsage()
+			log.Fatal("missing case name")
+		}
+		caseName := args[1]
+		version := 0 // Default to latest
+		if len(args) >= 3 && strings.HasPrefix(args[2], "--version=") {
+			fmt.Sscanf(strings.TrimPrefix(args[2], "--version="), "%d", &version)
+		}
+		if err := RunGetCaseCommand(caseName, version); err != nil {
+			log.Fatal(err)
+		}
+
+	case "versions":
+		if len(args) < 2 {
+			fmt.Println("Error: versions command requires case name")
+			ShowUsage()
+			log.Fatal("missing case name")
+		}
+		caseName := args[1]
+		if err := RunListCaseVersionsCommand(caseName); err != nil {
+			log.Fatal(err)
+		}
+
+	case "list":
+		if err := RunListAllCasesCommand(); err != nil {
 			log.Fatal(err)
 		}
 

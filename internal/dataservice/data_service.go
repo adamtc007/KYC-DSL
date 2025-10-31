@@ -434,3 +434,91 @@ func (s *DataService) ListCaseVersions(ctx context.Context, req *pb.ListCaseVers
 		TotalCount: totalCount,
 	}, nil
 }
+
+// ListAllCases retrieves all cases with summary information
+func (s *DataService) ListAllCases(ctx context.Context, req *pb.ListAllCasesRequest) (*pb.CaseList, error) {
+	log.Printf("📦 ListAllCases: limit=%d, offset=%d, status_filter=%s", req.Limit, req.Offset, req.StatusFilter)
+
+	// Default pagination
+	limit := req.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Build query with optional status filter
+	query := `
+		SELECT
+			case_id,
+			COUNT(*) as version_count,
+			MAX(status) as status,
+			MAX(created_at) as last_updated
+		FROM case_versions
+	`
+
+	var args []interface{}
+	argPosition := 1
+
+	if req.StatusFilter != "" {
+		query += fmt.Sprintf(" WHERE status = $%d", argPosition)
+		args = append(args, req.StatusFilter)
+		argPosition++
+	}
+
+	query += fmt.Sprintf(" GROUP BY case_id ORDER BY MAX(created_at) DESC LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
+	args = append(args, limit, offset)
+
+	rows, err := DB.Query(ctx, query, args...)
+	if err != nil {
+		log.Printf("❌ ListAllCases query error: %v", err)
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+	defer rows.Close()
+
+	var cases []*pb.CaseSummary
+	for rows.Next() {
+		var cs pb.CaseSummary
+		var lastUpdated time.Time
+		err := rows.Scan(
+			&cs.CaseId,
+			&cs.VersionCount,
+			&cs.Status,
+			&lastUpdated,
+		)
+		if err != nil {
+			log.Printf("❌ ListAllCases scan error: %v", err)
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+		cs.LastUpdated = lastUpdated.Format(time.RFC3339)
+		cases = append(cases, &cs)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Printf("❌ ListAllCases rows error: %v", err)
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	// Get total count
+	var totalCount int32
+	countQuery := `SELECT COUNT(DISTINCT case_id) FROM case_versions`
+	if req.StatusFilter != "" {
+		countQuery += ` WHERE status = $1`
+		err = DB.QueryRow(ctx, countQuery, req.StatusFilter).Scan(&totalCount)
+	} else {
+		err = DB.QueryRow(ctx, countQuery).Scan(&totalCount)
+	}
+	if err != nil {
+		log.Printf("⚠️ ListAllCases count error: %v", err)
+		totalCount = int32(len(cases))
+	}
+
+	log.Printf("✅ Listed %d cases (total: %d)", len(cases), totalCount)
+
+	return &pb.CaseList{
+		Cases:      cases,
+		TotalCount: totalCount,
+	}, nil
+}
