@@ -19,7 +19,7 @@ service RagService {
   rpc TextSearch (TextSearchRequest) returns (RagSearchResponse);
 
   // GetAttribute retrieves complete metadata for a specific attribute
-  rpc GetAttribute (GetAttributeRequest) returns (AttributeMetadata);
+  rpc GetAttribute (RagGetAttributeRequest) returns (AttributeMetadata);
 
   // SubmitFeedback submits user or AI agent feedback on search results
   rpc SubmitFeedback (RagFeedbackRequest) returns (RagFeedbackResponse);
@@ -79,8 +79,8 @@ message TextSearchRequest {
   int32 limit = 2;
 }
 
-// GetAttributeRequest retrieves a specific attribute
-message GetAttributeRequest {
+// RagGetAttributeRequest retrieves a specific attribute with full metadata
+message RagGetAttributeRequest {
   string attribute_code = 1;
 }
 

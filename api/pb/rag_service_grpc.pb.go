@@ -45,7 +45,7 @@ type RagServiceClient interface {
 	// TextSearch performs traditional text-based search
 	TextSearch(ctx context.Context, in *TextSearchRequest, opts ...grpc.CallOption) (*RagSearchResponse, error)
 	// GetAttribute retrieves complete metadata for a specific attribute
-	GetAttribute(ctx context.Context, in *GetAttributeRequest, opts ...grpc.CallOption) (*AttributeMetadata, error)
+	GetAttribute(ctx context.Context, in *RagGetAttributeRequest, opts ...grpc.CallOption) (*AttributeMetadata, error)
 	// SubmitFeedback submits user or AI agent feedback on search results
 	SubmitFeedback(ctx context.Context, in *RagFeedbackRequest, opts ...grpc.CallOption) (*RagFeedbackResponse, error)
 	// GetRecentFeedback retrieves recent feedback entries
@@ -98,7 +98,7 @@ func (c *ragServiceClient) TextSearch(ctx context.Context, in *TextSearchRequest
 	return out, nil
 }
 
-func (c *ragServiceClient) GetAttribute(ctx context.Context, in *GetAttributeRequest, opts ...grpc.CallOption) (*AttributeMetadata, error) {
+func (c *ragServiceClient) GetAttribute(ctx context.Context, in *RagGetAttributeRequest, opts ...grpc.CallOption) (*AttributeMetadata, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AttributeMetadata)
 	err := c.cc.Invoke(ctx, RagService_GetAttribute_FullMethodName, in, out, cOpts...)
@@ -191,7 +191,7 @@ type RagServiceServer interface {
 	// TextSearch performs traditional text-based search
 	TextSearch(context.Context, *TextSearchRequest) (*RagSearchResponse, error)
 	// GetAttribute retrieves complete metadata for a specific attribute
-	GetAttribute(context.Context, *GetAttributeRequest) (*AttributeMetadata, error)
+	GetAttribute(context.Context, *RagGetAttributeRequest) (*AttributeMetadata, error)
 	// SubmitFeedback submits user or AI agent feedback on search results
 	SubmitFeedback(context.Context, *RagFeedbackRequest) (*RagFeedbackResponse, error)
 	// GetRecentFeedback retrieves recent feedback entries
@@ -223,7 +223,7 @@ func (UnimplementedRagServiceServer) SimilarAttributes(context.Context, *Similar
 func (UnimplementedRagServiceServer) TextSearch(context.Context, *TextSearchRequest) (*RagSearchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TextSearch not implemented")
 }
-func (UnimplementedRagServiceServer) GetAttribute(context.Context, *GetAttributeRequest) (*AttributeMetadata, error) {
+func (UnimplementedRagServiceServer) GetAttribute(context.Context, *RagGetAttributeRequest) (*AttributeMetadata, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAttribute not implemented")
 }
 func (UnimplementedRagServiceServer) SubmitFeedback(context.Context, *RagFeedbackRequest) (*RagFeedbackResponse, error) {
@@ -320,7 +320,7 @@ func _RagService_TextSearch_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _RagService_GetAttribute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAttributeRequest)
+	in := new(RagGetAttributeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -332,7 +332,7 @@ func _RagService_GetAttribute_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: RagService_GetAttribute_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RagServiceServer).GetAttribute(ctx, req.(*GetAttributeRequest))
+		return srv.(RagServiceServer).GetAttribute(ctx, req.(*RagGetAttributeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

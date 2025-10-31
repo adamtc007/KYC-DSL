@@ -37,6 +37,17 @@ func main() {
 	ontologyService := dataservice.NewOntologyService()
 	pbOntology.RegisterOntologyServiceServer(grpcServer, ontologyService)
 
+	// TODO: Dictionary and DocMaster services temporarily disabled for debugging
+	// They are causing the gRPC server to hang/block on initialization
+	//
+	// Create and register Dictionary Service (attribute data model)
+	// dictionaryService := dictionary.NewServer()
+	// pbDictionary.RegisterDictionaryServiceServer(grpcServer, dictionaryService)
+	//
+	// Create and register DocMaster Service (document catalog)
+	// docMasterService := docmaster.NewServer()
+	// pbDocMaster.RegisterDocMasterServiceServer(grpcServer, docMasterService)
+
 	// Enable gRPC reflection for grpcurl/grpcui
 	reflection.Register(grpcServer)
 
@@ -52,6 +63,8 @@ func main() {
 	log.Println("   • kyc.data.DictionaryService - Ontology data (attributes, documents)")
 	log.Println("   • kyc.data.CaseService - Case version management")
 	log.Println("   • kyc.ontology.OntologyService - Full ontology API (entities, CBUs, control graph)")
+	log.Println("   • kyc.dictionary.DictionaryService - [DISABLED - debugging]")
+	log.Println("   • kyc.docmaster.DocMasterService - [DISABLED - debugging]")
 	log.Println()
 	log.Println("🌐 gRPC server listening on :50070")
 	log.Println()

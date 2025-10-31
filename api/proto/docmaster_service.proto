@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package kyc.docmaster;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb;pb";
+
+// DocMasterService manages the master catalog of identity documents
+service DocMasterService {
+  // Add a new document type to the catalog
+  rpc AddDocument(AddDocumentRequest) returns (Document);
+
+  // Get a specific document by ID
+  rpc GetDocument(GetDocumentRequest) returns (Document);
+
+  // List documents with optional filters
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+
+  // Find documents that contain a specific attribute
+  rpc FindDocumentsByAttribute(FindDocumentsByAttributeRequest) returns (FindDocumentsByAttributeResponse);
+}
+
+// Document represents an identity/verification document type
+message Document {
+  string id = 1;                              // Unique document ID (e.g., "doc-abc123")
+  string name = 2;                            // Document name (e.g., "UK Passport")
+  string country_code = 3;                    // ISO 3166-1 alpha-2 country code (e.g., "GB")
+  string region = 4;                          // Geographic region (e.g., "EU", "APAC")
+  string category = 5;                        // Document category (e.g., "passport", "id_card", "drivers_license")
+  repeated string contained_attribute_ids = 6; // List of attribute IDs this document contains
+}
+
+// AddDocumentRequest to create a new document type
+message AddDocumentRequest {
+  string name = 1;
+  string country_code = 2;
+  string region = 3;
+  string category = 4;
+  repeated string contained_attribute_ids = 5;
+}
+
+// GetDocumentRequest to retrieve a specific document
+message GetDocumentRequest {
+  string id = 1;  // Document ID
+}
+
+// ListDocumentsRequest with optional filters
+message ListDocumentsRequest {
+  string country_code_filter = 1;  // Optional: filter by country code
+  string region_filter = 2;         // Optional: filter by region
+  string category_filter = 3;       // Optional: filter by category
+}
+
+// ListDocumentsResponse contains matching documents
+message ListDocumentsResponse {
+  repeated Document documents = 1;
+  int32 total_count = 2;  // Total number of documents (for pagination)
+}
+
+// FindDocumentsByAttributeRequest to find documents containing an attribute
+message FindDocumentsByAttributeRequest {
+  string attribute_id = 1;  // Attribute ID to search for
+}
+
+// FindDocumentsByAttributeResponse contains matching documents
+message FindDocumentsByAttributeResponse {
+  repeated Document documents = 1;
+  int32 total_count = 2;
+}

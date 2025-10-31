@@ -359,28 +359,28 @@ func (x *TextSearchRequest) GetLimit() int32 {
 	return 0
 }
 
-// GetAttributeRequest retrieves a specific attribute
-type GetAttributeRequest struct {
+// RagGetAttributeRequest retrieves a specific attribute with full metadata
+type RagGetAttributeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AttributeCode string                 `protobuf:"bytes,1,opt,name=attribute_code,json=attributeCode,proto3" json:"attribute_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetAttributeRequest) Reset() {
-	*x = GetAttributeRequest{}
+func (x *RagGetAttributeRequest) Reset() {
+	*x = RagGetAttributeRequest{}
 	mi := &file_api_proto_rag_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetAttributeRequest) String() string {
+func (x *RagGetAttributeRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetAttributeRequest) ProtoMessage() {}
+func (*RagGetAttributeRequest) ProtoMessage() {}
 
-func (x *GetAttributeRequest) ProtoReflect() protoreflect.Message {
+func (x *RagGetAttributeRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_api_proto_rag_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -392,12 +392,12 @@ func (x *GetAttributeRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAttributeRequest.ProtoReflect.Descriptor instead.
-func (*GetAttributeRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use RagGetAttributeRequest.ProtoReflect.Descriptor instead.
+func (*RagGetAttributeRequest) Descriptor() ([]byte, []int) {
 	return file_api_proto_rag_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *GetAttributeRequest) GetAttributeCode() string {
+func (x *RagGetAttributeRequest) GetAttributeCode() string {
 	if x != nil {
 		return x.AttributeCode
 	}
@@ -1702,8 +1702,8 @@ const file_api_proto_rag_service_proto_rawDesc = "" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\"=\n" +
 	"\x11TextSearchRequest\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\tR\x04term\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"<\n" +
-	"\x13GetAttributeRequest\x12%\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"?\n" +
+	"\x16RagGetAttributeRequest\x12%\n" +
 	"\x0eattribute_code\x18\x01 \x01(\tR\rattributeCode\"\x97\x04\n" +
 	"\x11AttributeMetadata\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1d\n" +
@@ -1826,14 +1826,14 @@ const file_api_proto_rag_service_proto_rawDesc = "" +
 	"dimensions\x128\n" +
 	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12'\n" +
 	"\x0fdatabase_status\x18\x05 \x01(\tR\x0edatabaseStatus\x12'\n" +
-	"\x0fembedder_status\x18\x06 \x01(\tR\x0eembedderStatus2\xa0\x06\n" +
+	"\x0fembedder_status\x18\x06 \x01(\tR\x0eembedderStatus2\xa3\x06\n" +
 	"\n" +
 	"RagService\x12H\n" +
 	"\x0fAttributeSearch\x12\x19.kyc.rag.RagSearchRequest\x1a\x1a.kyc.rag.RagSearchResponse\x12R\n" +
 	"\x11SimilarAttributes\x12!.kyc.rag.SimilarAttributesRequest\x1a\x1a.kyc.rag.RagSearchResponse\x12D\n" +
 	"\n" +
-	"TextSearch\x12\x1a.kyc.rag.TextSearchRequest\x1a\x1a.kyc.rag.RagSearchResponse\x12H\n" +
-	"\fGetAttribute\x12\x1c.kyc.rag.GetAttributeRequest\x1a\x1a.kyc.rag.AttributeMetadata\x12K\n" +
+	"TextSearch\x12\x1a.kyc.rag.TextSearchRequest\x1a\x1a.kyc.rag.RagSearchResponse\x12K\n" +
+	"\fGetAttribute\x12\x1f.kyc.rag.RagGetAttributeRequest\x1a\x1a.kyc.rag.AttributeMetadata\x12K\n" +
 	"\x0eSubmitFeedback\x12\x1b.kyc.rag.RagFeedbackRequest\x1a\x1c.kyc.rag.RagFeedbackResponse\x12N\n" +
 	"\x11GetRecentFeedback\x12!.kyc.rag.GetRecentFeedbackRequest\x1a\x14.kyc.rag.RagFeedback0\x01\x12X\n" +
 	"\x14GetFeedbackAnalytics\x12$.kyc.rag.GetFeedbackAnalyticsRequest\x1a\x1a.kyc.rag.FeedbackAnalytics\x12L\n" +
@@ -1860,7 +1860,7 @@ var file_api_proto_rag_service_proto_goTypes = []any{
 	(*RagResult)(nil),                   // 2: kyc.rag.RagResult
 	(*SimilarAttributesRequest)(nil),    // 3: kyc.rag.SimilarAttributesRequest
 	(*TextSearchRequest)(nil),           // 4: kyc.rag.TextSearchRequest
-	(*GetAttributeRequest)(nil),         // 5: kyc.rag.GetAttributeRequest
+	(*RagGetAttributeRequest)(nil),      // 5: kyc.rag.RagGetAttributeRequest
 	(*AttributeMetadata)(nil),           // 6: kyc.rag.AttributeMetadata
 	(*RagFeedbackRequest)(nil),          // 7: kyc.rag.RagFeedbackRequest
 	(*RagFeedbackResponse)(nil),         // 8: kyc.rag.RagFeedbackResponse
@@ -1899,7 +1899,7 @@ var file_api_proto_rag_service_proto_depIdxs = []int32{
 	0,  // 14: kyc.rag.RagService.AttributeSearch:input_type -> kyc.rag.RagSearchRequest
 	3,  // 15: kyc.rag.RagService.SimilarAttributes:input_type -> kyc.rag.SimilarAttributesRequest
 	4,  // 16: kyc.rag.RagService.TextSearch:input_type -> kyc.rag.TextSearchRequest
-	5,  // 17: kyc.rag.RagService.GetAttribute:input_type -> kyc.rag.GetAttributeRequest
+	5,  // 17: kyc.rag.RagService.GetAttribute:input_type -> kyc.rag.RagGetAttributeRequest
 	7,  // 18: kyc.rag.RagService.SubmitFeedback:input_type -> kyc.rag.RagFeedbackRequest
 	9,  // 19: kyc.rag.RagService.GetRecentFeedback:input_type -> kyc.rag.GetRecentFeedbackRequest
 	11, // 20: kyc.rag.RagService.GetFeedbackAnalytics:input_type -> kyc.rag.GetFeedbackAnalyticsRequest

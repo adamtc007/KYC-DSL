@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package kyc.dictionary;
+
+option go_package = "github.com/adamtc007/KYC-DSL/api/pb;pb";
+
+// DictionaryService manages the attribute dictionary/data model
+service DictionaryService {
+  // Create a new attribute in the dictionary
+  rpc CreateAttribute(CreateAttributeRequest) returns (Attribute);
+
+  // Get a specific attribute by ID
+  rpc GetAttribute(DictGetAttributeRequest) returns (Attribute);
+
+  // Search attributes by name or description
+  rpc SearchAttributes(SearchAttributesRequest) returns (SearchAttributesResponse);
+
+  // List all attributes
+  rpc ListAttributes(ListAttributesRequest) returns (ListAttributesResponse);
+}
+
+// Attribute represents a data attribute in the KYC data model
+message Attribute {
+  string id = 1;          // Unique attribute ID (e.g., "attr-abc123")
+  string name = 2;        // Attribute name (e.g., "Full Name", "Date of Birth")
+  string description = 3; // Human-readable description
+  string data_type = 4;   // Data type (e.g., "string", "date", "number")
+  bool required = 5;      // Whether this attribute is required
+  string category = 6;    // Category (e.g., "identity", "address", "financial")
+  repeated string validation_rules = 7; // Validation rules (e.g., "regex:^[A-Z]", "min_length:5")
+}
+
+// CreateAttributeRequest to add a new attribute
+message CreateAttributeRequest {
+  string name = 1;
+  string description = 2;
+  string data_type = 3;
+  bool required = 4;
+  string category = 5;
+  repeated string validation_rules = 6;
+}
+
+// DictGetAttributeRequest to retrieve a specific attribute by ID
+message DictGetAttributeRequest {
+  string id = 1;  // Attribute ID
+}
+
+// SearchAttributesRequest to search attributes
+message SearchAttributesRequest {
+  string query = 1;  // Search query (searches name and description)
+  int32 limit = 2;   // Optional: limit number of results
+}
+
+// SearchAttributesResponse contains matching attributes
+message SearchAttributesResponse {
+  repeated Attribute attributes = 1;
+  int32 total_count = 2;
+}
+
+// ListAttributesRequest to get all attributes
+message ListAttributesRequest {
+  int32 limit = 1;   // Optional: limit number of results
+  int32 offset = 2;  // Optional: offset for pagination
+  string category_filter = 3; // Optional: filter by category
+}
+
+// ListAttributesResponse contains all attributes
+message ListAttributesResponse {
+  repeated Attribute attributes = 1;
+  int32 total_count = 2;
+}
