@@ -381,7 +381,7 @@ fn serialize_case(case: &ParsedCase) -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:50060".parse()?;
+    let addr = "0.0.0.0:50060".parse()?;
     let service = RustDslServer;
 
     println!("🦀 Rust DSL gRPC Service");
